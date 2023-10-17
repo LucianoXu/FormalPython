@@ -7,7 +7,7 @@ See (https://coq.inria.fr/refman/language/cic.html#global-environment).
 from __future__ import annotations
 
 from .term import *
-from ..rem import RemProof
+from ...rem import RemProof
 
 @Rem_term
 class LocalDec(RemTerm):

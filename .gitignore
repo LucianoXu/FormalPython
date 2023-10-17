@@ -1,4 +1,6 @@
 __pycache__
+.pytest_cache
+
 parser.out
 parsetab.py
 REM_rule.txt

@@ -11,7 +11,7 @@ from .context import *
 from .environment import *
 from .typing_rule import Rem_WF, Rem_WT
 
-from ..rem import RemProof
+from ...rem import RemProof
 
 
 # alpha-conversion judgement is implemented in `Term`.

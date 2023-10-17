@@ -1,9 +1,0 @@
-2023/10/9
-
-I encountered some severe problems of parsing: I cannot deal with the ambiguity. For example:
-
-E ( rho )
-
-It can be understood as superoperator E acts on operator rho, or operator E multiplies operator rho.
-
-I need to dive in the principles of compilers later on.
