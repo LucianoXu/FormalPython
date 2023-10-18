@@ -11,6 +11,5 @@ from .conversion_rule import *
 # check the system
 Rem_system_build(
     rem_coc, 
-    file = __file__,
-    build_parser = False
+    file = __file__
 )

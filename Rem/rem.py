@@ -24,12 +24,35 @@ class REMSystem:
     '''
     Every instance represents a REM system.
     '''
+    counter : int = 2
     def __init__(self):
-        self.counter = 2
+
         self.registered : list[Type[RemTerm]] = [RemTerm, RemProof]
 
         self.lexer : syn.PLYLexer = syn.PLYLexer(empty_mode=True)
         self.parser : syn.PLYParser = syn.PLYParser(empty_mode=True)
+
+    def fuse_append(self, other : REMSystem) -> REMSystem:
+        '''
+        Fuse two `REMSystem` instances and return the result.
+        '''
+        res = REMSystem()
+
+        # fuse the registered `RemTerm` subclasses
+        res.registered = self.registered.copy()
+        for termcls in other.registered:
+            if termcls not in res.registered:
+                res.registered.append(termcls)
+
+        # fuse the lexing/parsing rule set
+        res.lexer = self.lexer.fuse_append(other.lexer)
+        res.parser = self.parser.fuse_append(other.parser)
+
+        return res
+
+
+        
+
 
     def lexer_reserved(self, reserved_type : str, reserved_key : str):
         self.lexer.add_reserved(reserved_type, reserved_key)
@@ -39,9 +62,6 @@ class REMSystem:
         
     def lexer_literals(self, literal : str | list[str]):
         self.lexer.add_literals(literal)
-
-    def parser_set_start(self, start : str):
-        self.parser.set_start(start)
 
     def parser_set_precedence(self, term : str, prec : int, assoc : str):
         self.parser.set_precedence(term, prec, assoc)
@@ -63,7 +83,19 @@ class REMSystem:
 
     
 
-
+def is_subterm_class(A : Type, B : Type) -> bool:
+    '''
+    Recursively decides whether `A` is a subterm class of `B`.
+    '''
+    if issubclass(A, B):
+        return True
+    
+    if issubclass(A, RemTerm) and issubclass(B, RemTerm):
+        for cls in A.super_term:
+            if is_subterm_class(cls, B):
+                return True
+        
+    return False
 
 class RemTerm:
     '''
@@ -84,6 +116,10 @@ class RemTerm:
     # reload this object as a staticmethod to define the parsing rule for subterms.
     parsing_rule : None | FunctionType = None
 
+    # this attribute contains all the super terms of the current term. It will be used in type check of term instances and REM system fusion.
+    super_term : set[Type[RemTerm]] = set()
+
+
     @property
     def describe(self) -> str:
         '''
@@ -97,22 +133,29 @@ class RemTerm:
     def is_concrete(self) -> bool:
         return False
     
+    def is_subterm(self, superterm : Type) -> bool:
+        '''
+        Check whether this term is a subterm of `superterm` class.
+        It is decided by `super_term` attribute of the current class.
+        '''
+        return is_subterm_class(self.__class__, superterm)
+    
     def Rem_type_check(self, obj, T : Type | Tuple[Type, ...], term : str) -> None:
         '''
-        Checks whether object `obj` has the type `T`. It should serve as the term for `term` in the meta system.
+        Checks whether object `obj` is a subterm of the type `T`.
         Raise a `REM_Error` when the type does not match.
         This is intended for the check for correct operations.
         '''
-
+        # for `RemTerm` terms, we do the subterm check
         if isinstance(T, tuple):
             for t in T:
-                if isinstance(obj, t):
+                if is_subterm_class(type(obj), t):
                     return
             
-            raise REM_Error("\n({}): The term '{}' should have the type in \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}'\n\nactually has type \n\n'{}'\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, type(obj), self.Rem_term_def))
-
-        elif not isinstance(obj, T):
-            raise REM_Error("\n({}): The term '{}' should have the type \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}'\n\nactually has type \n\n'{}'\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, type(obj), self.Rem_term_def))
+            raise REM_Error("\n({}): The term '{}' should be a subterm of some type in \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}'\n\nactually has type \n\n'{}'\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, type(obj), self.Rem_term_def))
+        
+        elif not is_subterm_class(type(obj), T):
+            raise REM_Error("\n({}): The term '{}' should be a subterm of \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}'\n\nactually has type \n\n'{}'\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, type(obj), self.Rem_term_def))
         
 
     def Rem_consistency_check(self, a, b, term : str) -> None:
@@ -153,6 +196,14 @@ def Rem_term(rem_sys : REMSystem):
         cls.term_order = rem_sys.counter
         rem_sys.counter += 1
         rem_sys.registered.append(cls)
+
+        # automatically add the super term, only `RemTerm` superclasses are considered.
+        cls.super_term = set(
+            filter(
+                lambda x: issubclass(x, RemTerm), 
+                cls.__bases__
+            )
+        )
 
         doc : str| None = cls.__doc__
         try:
@@ -266,16 +317,16 @@ def get_Rem_subclass(GLOBAL : dict[str, Any]) -> list[Type[RemTerm]]:
     return Rem_terms
 
 
-def Rem_system_build(rem_sys : REMSystem, file : str = "", build_parser : bool = False) -> None:
+def Rem_system_build(rem_sys : REMSystem, file : str = "", parser_start : str | None = None) -> None:
     '''
     Checks whether the Rem system given by `rem_sys` is well formed, prepare the lexer/parser components and generate the doc.
 
     - `rem_sys` : `REMSystem`.
     - `file` : should pass in the `__file__` result
-    - `build_parser` : `bool`, whether to build the parser.
+    - `parser_start` : `str | None`, if not `None`: build the parser with this start symbol.
     '''        
 
-    if build_parser:
+    if parser_start is not None:
         # build the lexer
         rem_sys.lexer.build()
 
@@ -285,7 +336,7 @@ def Rem_system_build(rem_sys : REMSystem, file : str = "", build_parser : bool =
                 rem_sys.parser_rule(cls.parsing_rule)
         
         # build the parser
-        rem_sys.parser.build(rem_sys.lexer)
+        rem_sys.parser.build(rem_sys.lexer, parser_start)
 
 
     # produce the rule doc

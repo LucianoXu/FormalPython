@@ -26,7 +26,8 @@ The package `Rem` provides the tools for construting the formal proof system in 
 - If necessary, define the lexing/parsing rules with the interface provided by `REMSystem`.
 - Confirm and check the implementation after all definitions, using the method `Rem_system_check`. It can also build the parser if corresponding rules have been defined. The invocation of `Rem_system_check` method is often conducted in the end of the `__init__.py` file of the package.
 
-
+## Fusing two REM systems
+REM supports the incremental implementation of formal systems. We can append `RemTerm` subclasses to `super_term` static attributes to create new subterm relation between different REM systems, and use `REMSystem.fuse_append` method to get the system after fusion. This fusiong includes proof terms (subclasses of `RemTerm`) and the lexing/parsing rules.
 
 ## lexing rule order
 In PLY, the precedence of lexing rules works like this: for lexing rules provided by the regulare expression string, there are no guarantee of matching order, so it is not recommend for tokens with ambiguity. For lexing rules that provided by a function, it looks at the **source line** only, and tokens defined with less line number will be matched. This even works for token functions in different python files.

@@ -6,5 +6,5 @@ from . import parsing
 Rem_system_build(
     rem_coc, 
     file=__file__,
-    build_parser=True
+    parser_start = "term"
 )

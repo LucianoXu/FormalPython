@@ -23,19 +23,12 @@ class PLYLexer:
         '''
         This build data only stores those attributes directly used in lexer building.
         '''
-        def __init__(self, empty_mode : bool):
-
-            self.tokens : list[str] = []
-            self.literals : list[str] = []
+        def __init__(self):
+            self.tokens : list[str]
+            self.literals : list[str]
 
             # the default `t_error` function is necessary
             self.t_error = t_error
-
-            # default lexing rules
-            if not empty_mode:
-                self.t_ignore = ' \t'
-                self.t_COMMENT = t_COMMENT
-                self.t_newline = t_newline
 
 
     def __init__(self, empty_mode : bool = False):
@@ -49,13 +42,23 @@ class PLYLexer:
         self.reserved : dict[str, str] = {}
         # this `unreserved_tokens` does not contain reserved tokens
         self.unreserved_tokens : list[str] = []
-        # lexing rule stack
-        self.stack : list[Tuple[str, str | FunctionType]] = []
+        self.literals : list[str] = []
 
-        self.__build_data = PLYLexer.BuildData(empty_mode)
-    
+        # lexing rule stack
+        self.stack : list[Tuple[str, str | function]] = []
+
+        # default lexing rules
+        if not empty_mode:
+            self.stack.append(("ignore", ' \t'))
+            self.stack.append(("COMMENT", t_COMMENT))
+            self.stack.append(("newline", t_newline))
+
+        self.__build_data : PLYLexer.BuildData | None = None
+
     @property
-    def build_data(self) -> BuildData:
+    def build_data(self) -> PLYLexer.BuildData:
+        if self.__build_data is None:
+            raise REM_Error("Rem has not built the lexer yet.")
         return self.__build_data
 
     @property
@@ -70,7 +73,7 @@ class PLYLexer:
 
         self.reserved[reserved_key] = reserved_type
 
-    def add_rule(self, token : str, rule : str | FunctionType):
+    def add_rule(self, token : str, rule : str | function):
 
         if isinstance(rule, str):
             self.stack.append((token, rule))
@@ -86,15 +89,18 @@ class PLYLexer:
         
     def add_literals(self, literal : str | list[str]):
         if isinstance(literal, str):
-            self.build_data.literals.append(literal)
+            self.literals.append(literal)
 
         elif isinstance(literal, list):
-            self.build_data.literals += literal
+            self.literals += literal
             
         else:
             raise REM_Error(f"Rem detected the invalid lexing literals '{literal}'.")
 
     def build(self):
+
+        self.__build_data = self.BuildData()
+        self.build_data.literals = self.literals.copy()
 
         for token, rule in self.stack:
             setattr(self.build_data, f"t_{token}", rule)
@@ -107,6 +113,30 @@ class PLYLexer:
         return self.lexer.input(raw)
     def token(self):
         return self.lexer.token()
+    
+
+    # fusion
+    def fuse_append(self, other : PLYLexer) -> PLYLexer:
+        '''
+        Fuse the two lexer definitions and return the result.
+        It will update the definitions of `other` on `self`.
+        It means that definitions from `other` will be used when conflicts happen.
+
+        TODO #4
+        '''
+        REM_type_check(other, PLYLexer)
+
+        res = PLYLexer(True)
+
+        res.reserved = self.reserved.copy()
+        res.reserved.update(other.reserved)
+
+        res.unreserved_tokens = self.unreserved_tokens + other.unreserved_tokens
+        self.literals = self.literals + other.literals
+        res.stack = self.stack + other.stack
+
+        return res
+
 
 
 
@@ -139,7 +169,7 @@ class PLYParser:
         '''
         This build data only stores those attributes directly used in parser building.
         '''
-        def __init__(self, empty_mode : bool = False):
+        def __init__(self):
 
             self.tokens : list[str]
 
@@ -151,8 +181,6 @@ class PLYParser:
             self.p_error = p_error
 
 
-            if not empty_mode:
-                pass
 
 
     def __init__(self, empty_mode : bool = False):
@@ -167,13 +195,19 @@ class PLYParser:
         # the precedence tab
         # the first element in the tuple is the associativity. If it is left `None`, then the default value is applied.
         self.prec_tab : list[Tuple[str | None, list[str]]] = [(None, [])] * PLYParser.MAX_PRECEDENCE
+
         # the parsing rule stack. A list of (item_name, item_func)
         self.stack : list[Tuple[str, FunctionType]] = []
 
-        self.__build_data = PLYParser.BuildData(empty_mode)
+        if not empty_mode:
+            pass
+        
+        self.__build_data : PLYParser.BuildData | None = None
 
     @property
-    def build_data(self) -> BuildData:
+    def build_data(self) -> PLYParser.BuildData:
+        if self.__build_data is None:
+            raise REM_Error("Rem has not built the parser yet.")
         return self.__build_data
 
     @property
@@ -181,14 +215,6 @@ class PLYParser:
         if self.__parser is None:
             raise REM_Error("Rem has not built the parser yet.")
         return self.__parser
-        
-
-    def set_start(self, start : str):
-        '''
-        Set the start symbol.
-        '''
-        REM_type_check(start, str)
-        self.build_data.start = start
 
     def set_precedence(self, term : str, prec : int, assoc : str):
         '''
@@ -225,13 +251,18 @@ class PLYParser:
         self.stack.append((name, rule))
 
 
-    def build(self, plylexer : PLYLexer):
+    def build(self, plylexer : PLYLexer, start_symbol : str):
         '''
-        - `plylexer` : a built `PLYLexer` instance
-        - `lexer` : the corresponding lexer should be specified.
+        - `plylexer` : `PLYLexer`, a built `PLYLexer` instance
+        - `start_symbol` : `str`, the start symbol.
         '''
 
         REM_type_check(plylexer, PLYLexer)
+
+        self.__build_data = PLYParser.BuildData()
+
+        # set the start symbol
+        self.build_data.start = start_symbol
 
         # set the token
         self.build_data.tokens = plylexer.build_data.tokens
@@ -256,4 +287,30 @@ class PLYParser:
     # interface
     def __call__(self, raw : str):
         return self.parser.parse(raw, lexer = self.plylexer.lexer)
+    
+    # fusion
+    def fuse_append(self, other : PLYParser) -> PLYParser:
+        '''
+        Fuse the two parser definitions and return the result.
+        It will update the definitions of `other` on `self`.
+        It means that definitions from `other` will be used when conflicts happen.
+        '''
+
+        REM_type_check(other, PLYParser)
+
+        res = PLYParser(True)
+
+        # fuse the precedence table
+        for i in range(PLYParser.MAX_PRECEDENCE):
+            if self.prec_tab[i][0] != other.prec_tab[i][0]:
+                raise REM_Error(f"Rem cannot fuse the two parsing rule sets because of precedence conflicts: for precedence {i}, one rule set has associativity '{self.prec_tab[i][0]}' and the other has '{other.prec_tab[i][0]}'.")
+            
+            res.prec_tab[i] = (self.prec_tab[i][0], self.prec_tab[i][1] + other.prec_tab[i][1])
+
+        res.stack = self.stack + other.stack
+
+        return res
+
+        
+
 
