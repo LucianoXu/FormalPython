@@ -9,7 +9,7 @@ from __future__ import annotations
 from .term import *
 from ...rem import RemProof
 
-@Rem_term
+@Rem_term(rem_coc)
 class LocalDec(RemTerm):
     '''
     local-dec
@@ -43,7 +43,7 @@ class LocalDec(RemTerm):
     def T(self) -> Term:
         return self.__T
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class LocalTyping(LocalDec):
     '''
     local-assum
@@ -60,7 +60,7 @@ class LocalTyping(LocalDec):
     def __str__(self) -> str:
         return f"({self.x} : {self.T})"
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class LocalDef(LocalDec):
     '''
     local-def
@@ -97,7 +97,7 @@ class LocalDef(LocalDec):
 # Local Context
 ###
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Context(RemTerm):
     '''
     context
@@ -157,7 +157,7 @@ class Context(RemTerm):
         return Context(self.__ls + other.__ls)
         
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_Cont_Not_Contain_Var(RemProof):
     '''
     not-in-local
@@ -197,7 +197,7 @@ class Rem_Cont_Not_Contain_Var(RemProof):
         return f"{self.x} ∉ {self.Gamma}"
 
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_Cont_Contain_Var(RemProof):
     '''
     var-in-local
@@ -243,7 +243,7 @@ class Rem_Cont_Contain_Var(RemProof):
         return f"{self.x} ∈ {self.Gamma}"
 
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_Cont_Contain_Typing(RemProof):
     '''
     assum-in-local
@@ -295,7 +295,7 @@ class Rem_Cont_Contain_Typing(RemProof):
     def conclusion(self) -> str:
         return f"{self.x_typing} ∈ {self.Gamma}"
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_Cont_Contain_Def(RemProof):
     '''
     def-in-local

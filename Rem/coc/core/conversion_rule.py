@@ -16,7 +16,7 @@ from ...rem import RemProof
 
 # alpha-conversion judgement is implemented in `Term`.
     
-@Rem_term
+@Rem_term(rem_coc)
 class Rem_reduction(RemProof):
     '''
     reduce
@@ -64,7 +64,7 @@ class Rem_reduction(RemProof):
         return f"{self.E}{self.Gamma} ⊢ {self.t1} ▷ {self.t2}"
     
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_reduction_trans(Rem_reduction):
     '''
     reduce-trans
@@ -108,13 +108,13 @@ class Rem_reduction_trans(Rem_reduction):
         res += self.__red2.conclusion() + "\n"
         return res
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_beta_reduction(Rem_reduction):
     '''
     β-reduction
     ```
         -----------------------------
-        E[Γ] ⊢ ((λx:T.t) u) ▷ t{x/u}
+        E[Γ] ⊢ ((λx:T,t) u) ▷ t{x/u}
     ```
     '''
     
@@ -124,14 +124,14 @@ class Rem_beta_reduction(Rem_reduction):
         Parameters -> Rule Terms:
         - `E` -> `E`
         - `Gamma` -> `Γ`
-        - `t1` -> `(λx:T.t) u`
+        - `t1` -> `(λx:T,t) u`
         '''
-        self.Rem_type_check(t1, Apply, '(λx:T.t) u')
-        self.Rem_type_check(t1.t, Abstract, 'λx:T.t')
+        self.Rem_type_check(t1, Apply, '(λx:T,t) u')
+        self.Rem_type_check(t1.t, Abstract, 'λx:T,t')
         assert isinstance(t1.t, Abstract)
 
 
-        # the conclusion `E[Γ] ⊢ ((λx:T.t) u) ▷ t{x/u}`
+        # the conclusion `E[Γ] ⊢ ((λx:T,t) u) ▷ t{x/u}`
         t2_sub = t1.t.u.substitute(t1.t.x, t1.u)        
         super().__init__(E, Gamma, t1, t2_sub)
 
@@ -139,7 +139,7 @@ class Rem_beta_reduction(Rem_reduction):
         return ""
 
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_delta_reduction(Rem_reduction):
     '''
     δ-reduction
@@ -177,7 +177,7 @@ class Rem_delta_reduction(Rem_reduction):
         return res
     
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_Delta_reduction(Rem_reduction):
     '''
     Δ-reduction
@@ -218,7 +218,7 @@ class Rem_Delta_reduction(Rem_reduction):
 # ι-reduction is omitted here.
 
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_zeta_reduction(Rem_reduction):
     '''
     ζ-reduction
@@ -280,33 +280,33 @@ class Rem_zeta_reduction(Rem_reduction):
         return res
     
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_eta_conversion(RemProof):
     '''
     η-expansion (conversion)
 
     ```
-        E[Γ] ⊢ λx:T.u : ∀y:T, U
+        E[Γ] ⊢ λx:T,u : ∀y:T, U
         E[Γ::(x:T)] ⊢ u =βδιζη (t x)
         -------------------
-        E[Γ] ⊢ t =η λx:T.u
+        E[Γ] ⊢ t =η λx:T,u
     ```
 
-    It is legal to identify any term `t` of functional type `∀x:T, U` with its so-called η-expansion `λx:T.(t x)`.
+    It is legal to identify any term `t` of functional type `∀x:T, U` with its so-called η-expansion `λx:T,(t x)`.
 
-    Here a special property is used: because of the generation rule for `E[Γ] ⊢ λx:T.u : ∀x:T, U`, x will not be contained in `Γ`.
+    Here a special property is used: because of the generation rule for `E[Γ] ⊢ λx:T,u : ∀x:T, U`, x will not be contained in `Γ`.
     Note that this rule is 'convertible' but not 'reducible'.
     '''
 
     def __init__(self, wt : Rem_WT, convert : Rem_convertible):
         '''
         Parameters -> Rule Terms:
-        - `wt` -> `E[Γ] ⊢ λx:T.u : ∀y:T, U`
+        - `wt` -> `E[Γ] ⊢ λx:T,u : ∀y:T, U`
         - `convert` -> `E[Γ::(x:T)] ⊢ u =βδιζη (t x)`
         '''
 
-        self.Rem_type_check(wt, Rem_WT, 'E[Γ] ⊢ λx:T.u : ∀x:T, U')
-        self.Rem_type_check(wt.t, Abstract, 'λx:T.u')
+        self.Rem_type_check(wt, Rem_WT, 'E[Γ] ⊢ λx:T,u : ∀x:T, U')
+        self.Rem_type_check(wt.t, Abstract, 'λx:T,u')
         assert isinstance(wt.t, Abstract)
         self.Rem_type_check(wt.T, Prod, '∀y:T, U')
         assert isinstance(wt.T, Prod)
@@ -339,7 +339,7 @@ class Rem_eta_conversion(RemProof):
         self.__wt = wt
         self.__convert = convert
 
-        # the proof `E[Γ] ⊢ t ~η λx:T.u` complete
+        # the proof `E[Γ] ⊢ t ~η λx:T,u` complete
 
 
     @property
@@ -369,7 +369,7 @@ class Rem_eta_conversion(RemProof):
         return f"{self.E}{self.Gamma} ⊢ {self.t} =η {self.lam}"
     
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_convertible(RemProof):
     '''
     βδιζη-convertible.
@@ -464,7 +464,7 @@ class Rem_convertible(RemProof):
 # Subtyping conversion.
 ###
 
-@Rem_term
+@Rem_term(rem_coc)
 class Rem_subtyping(RemProof):
     '''
     subtype
@@ -510,7 +510,7 @@ class Rem_subtyping(RemProof):
     def conclusion(self) -> str:
         return f"{self.E}{self.Gamma} ⊢ {self.t1} ≤βδιζη {self.t2}"
 
-@Rem_term
+@Rem_term(rem_coc)
 class Rem_subtyping_trans(Rem_subtyping):
     '''
     subtype-trans
@@ -553,7 +553,7 @@ class Rem_subtyping_trans(Rem_subtyping):
         return res
 
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_subtyping_convert(Rem_subtyping):
     '''
     subtype-convert
@@ -580,7 +580,7 @@ class Rem_subtyping_convert(Rem_subtyping):
         return self.__convert.conclusion() + "\n"
     
     
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_subtyping_universe(Rem_subtyping):
     '''
     subtype-universe
@@ -611,7 +611,7 @@ class Rem_subtyping_universe(Rem_subtyping):
         return f"{self.__i} ≤ {self.__j}"
         
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_subtyping_Set(Rem_subtyping):
     '''
     subtype-Set
@@ -641,7 +641,7 @@ class Rem_subtyping_Set(Rem_subtyping):
         return ""
     
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_subtyping_Prop(Rem_subtyping):
     '''
     subtype-Prop
@@ -663,7 +663,7 @@ class Rem_subtyping_Prop(Rem_subtyping):
     def premises(self) -> str:
         return ""
     
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_subtyping_lam(Rem_subtyping):
     '''
     subtype-lam
@@ -720,7 +720,7 @@ class Rem_subtyping_lam(Rem_subtyping):
 # the Convertible proof (with subtyping) #
 ##########################################
 
-@concrete_Rem_term
+@concrete_Rem_term(rem_coc)
 class Rem_Conv(Rem_WT):
     '''
     Conv
