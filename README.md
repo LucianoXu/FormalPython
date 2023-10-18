@@ -14,7 +14,7 @@ The Rem tool consists of the following parts:
   - `Rem_type_check`, `Rem_consistency_check` and `Rem_other_check`: the standard checking method for the calculus, which provides standard formatted error report.
   - `parsing_rule` : if this attribute is defined, it will be collected as a parsing rule for the construction of the parser. However, because of the _as it is_ methodology, it is not meant for complex parsings when factors other than the term structure is considered. The parsing rule here should be simple and direct.
 - `Rem_term` and `concrete_Rem_term`: the decorator to register the subclass of `RemTerm` at a system instance of `REMSystem` and automatically generates the meta term information. `concrete_Rem_term` corresponds to concrete proof terms that can be actually constructed in the meta system.
-- `Rem_system_check`: a method to check the validity of the current meta system and generates the document `meta_rule.txt`. This should be executed at the end of a meta system definition (typically at the end of the `__init__.py` file of the package.)
+- `Rem_system_build`: a method to check the validity of the current meta system and generates the document `meta_rule.txt`. This should be executed at the end of a meta system definition (typically at the end of the `__init__.py` file of the package.)
 
 ## Implementing formal systems
 
@@ -24,7 +24,7 @@ The package `Rem` provides the tools for construting the formal proof system in 
 - Create a `REMSystem` instance, which manages the meta information of the formal system to be implemented.
 - Defining subclasses of `RemTerm` or `RemProof`, which represents the formal terms in the system. Remember to register them at the `REMSystem` instance using the decorator `Rem_term` or `concrete_Rem_term`. Provide the information as described in `RemTerm`.
 - If necessary, define the lexing/parsing rules with the interface provided by `REMSystem`.
-- Confirm and check the implementation after all definitions, using the method `Rem_system_check`. It can also build the parser if corresponding rules have been defined. The invocation of `Rem_system_check` method is often conducted in the end of the `__init__.py` file of the package.
+- Confirm and check the implementation after all definitions, using the method `Rem_system_build`. It can also build the parser if corresponding rules have been defined. The invocation of `Rem_system_build` method is often conducted in the end of the `__init__.py` file of the package.
 
 ## Fusing two REM systems
 REM supports the incremental implementation of formal systems. We can append `RemTerm` subclasses to `super_term` static attributes to create new subterm relation between different REM systems, and use `REMSystem.fuse_append` method to get the system after fusion. This fusiong includes proof terms (subclasses of `RemTerm`) and the lexing/parsing rules.
