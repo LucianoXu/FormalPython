@@ -33,6 +33,16 @@ REM supports the incremental implementation of formal systems. We can append `Re
 In PLY, the precedence of lexing rules works like this: for lexing rules provided by the regulare expression string, there are no guarantee of matching order, so it is not recommend for tokens with ambiguity. For lexing rules that provided by a function, it looks at the **source line** only, and tokens defined with less line number will be matched. This even works for token functions in different python files.
 
 
+## About bound variables
+I found that Coq allows ``renaming`` of bound variables:
+```Coq
+Lemma a : forall P : Prop, P -> P.
+    move => P.
+    have a := fun P : P => P.
+```
+But I think it should be placed in the periphery level.
+
+
 ## Extendable Formal System!
 from CoC to CiC to CiC + QHL ...
 

@@ -27,9 +27,9 @@ rem_coc.lexer_literals(["(", ")", ":", ",", "."])
 def t_UNICODE(t):
     r"∀|λ"
     if t == "∀":
-        t.type = "FORALL"
+        t.type = "FORALL"   # type: ignore
     elif t == "λ":
-        t.type = "LAMBDA"
+        t.type = "LAMBDA"   # type: ignore
     else:
         raise Exception()
 

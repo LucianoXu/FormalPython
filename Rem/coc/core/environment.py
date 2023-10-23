@@ -142,6 +142,17 @@ class Environment(RemTerm):
         '''
         return Environment(self.__ls + (dec,))
     
+    def get_typing(self, const : Const) -> Term | None:
+        '''
+        Return `T` for `const : T` or `const := t : T` in `self`.
+        Return `None` when `const` is not contained in `self.
+        '''
+        for c_dec in self.ls:
+            if c_dec.c == const:
+                return c_dec.T
+            
+        return None
+
 
 @concrete_Rem_term(rem_coc)
 class Rem_Env_Not_Contain_Const(RemProof):

@@ -12,7 +12,7 @@ from types import FunctionType
 import inspect
 import os
 
-from .rem_error import REM_Error
+from .rem_error import REM_Error, REM_type_check, REM_other_check
 
 
 # a set of default lexing/parsing rules

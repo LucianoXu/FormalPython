@@ -19,3 +19,7 @@ def REM_type_check(obj : object, target_type : Type | Tuple[Type, ...]) -> None:
 
     elif not isinstance(obj, target_type):
         raise REM_Error("REM-type-check: The parameter expression '" + str(obj) + "' should be of type '" + str(target_type) + "', but is of type '"+ str(type(obj)) + "'.")
+
+def REM_other_check(expr : bool, reason : str) -> None:
+    if not expr:
+        raise REM_Error("REM-other-check: Rem does not accept because: \n\n{}".format(reason))

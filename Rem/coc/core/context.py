@@ -156,6 +156,17 @@ class Context(RemTerm):
         '''
         return Context(self.__ls + other.__ls)
         
+    def get_typing(self, var : Var) -> Term | None:
+        '''
+        Return `T` for `var : T` or `var := t : T` in `self`.
+        Return `None` when `var` is not contained in `self.
+        '''
+        for var_dec in self.ls:
+            if var_dec.x == var:
+                return var_dec.T
+            
+        return None
+
 
 @concrete_Rem_term(rem_coc)
 class Rem_Cont_Not_Contain_Var(RemProof):

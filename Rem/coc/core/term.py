@@ -352,7 +352,7 @@ class Prod(BoundTerm):
 
         if self.x in self.U.free_var() or self.x in self.U.free_var():
 
-            return f"∀ {self.x}:{self.T}, {self.U}"
+            return f"∀{self.x}:{self.T}, {self.U}"
         
         else:
 
@@ -389,7 +389,7 @@ class Abstract(BoundTerm):
     '''
     term-lambda
     ```
-    λx:T,u
+    λx:T, u
     ```
     '''
 
@@ -433,7 +433,7 @@ class Abstract(BoundTerm):
         return self_rep.T.alpha_convertible(other_rep.T) and self_rep.u.alpha_convertible(other_rep.u)
 
     def __str__(self) -> str:
-        return f"λ{self.x}:{self.T},{self.u}"
+        return f"λ{self.x}:{self.T}, {self.u}"
     
     def all_var(self) -> set[Var]:
         return self.T.all_var() | self.u.all_var() | {self.x}
