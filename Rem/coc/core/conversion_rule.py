@@ -65,50 +65,6 @@ class Rem_reduction(RemProof):
     
 
 @concrete_Rem_term(rem_coc)
-class Rem_reduction_trans(Rem_reduction):
-    '''
-    reduce-trans
-    ```
-        E[Γ] ⊢ t1 ▷ t2
-        E[Γ] ⊢ t2 ▷ t3
-        -----------------
-        E[Γ] ⊢ t1 ▷ t3
-    ```
-
-    The transitivity construction of reduction relation.
-    '''
-    
-    def __init__(self, red1 : Rem_reduction, red2 : Rem_reduction):
-        '''
-        Parameters -> Rule Terms:
-        - `red1` -> `E[Γ] ⊢ t1 ▷ t2`
-        - `red2` -> `E[Γ] ⊢ t2 ▷ t3`
-        '''
-        self.Rem_type_check(red1, Rem_reduction, 'E[Γ] ⊢ t1 ▷ t2')
-
-        self.Rem_type_check(red2, Rem_reduction, 'E[Γ] ⊢ t2 ▷ t3')
-
-        # consistent `E`
-        self.Rem_consistency_check(red1.E, red2.E, 'E')
-        
-        # consistent `Γ`
-        self.Rem_consistency_check(red1.Gamma, red2.Gamma, 'Γ')
-        
-        # consistent `t2`
-        self.Rem_consistency_check(red1.t2, red2.t1, 't2')
-        
-        self.__red1 = red1
-        self.__red2 = red2
-
-        # the conclusion
-        super().__init__(red1.E, red1.Gamma, red1.t1, red2.t2)
-
-    def premises(self) -> str:
-        res = self.__red1.conclusion() + "\n"
-        res += self.__red2.conclusion() + "\n"
-        return res
-
-@concrete_Rem_term(rem_coc)
 class Rem_beta_reduction(Rem_reduction):
     '''
     β-reduction
@@ -369,6 +325,415 @@ class Rem_eta_conversion(RemProof):
         return f"{self.E}{self.Gamma} ⊢ {self.t} =η {self.lam}"
     
 
+#############################################################
+# rules for compatibility of reduction with term construction
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_prod_T(Rem_reduction):
+    '''
+    red-prod-T
+    ```
+        E[Γ] ⊢ T1 ▷ T2
+        ---------------------------
+        E[Γ] ⊢ ∀x:T1, U ▷ ∀x:T2, U
+    ```
+    '''
+    def __init__(self, red : Rem_reduction, x : Var, U : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `red` -> `E[Γ] ⊢ T1 ▷ T2`
+        - `x` -> `x`
+        - `U` -> `U`
+        '''
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ T1 ▷ T2')
+
+        self.Rem_type_check(x , Var, "x")
+
+        self.Rem_type_check(U, Term, 'U')
+
+        self.__red = red
+
+        super().__init__(red.E, red.Gamma, 
+            Prod(x, red.t1, U), Prod(x, red.t2, U)
+        )
+
+    def premises(self) -> str:
+        return self.__red.conclusion()
+
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_prod_U(Rem_reduction):
+    '''
+    red-prod-T
+    ```
+        E[Γ] ⊢ U1 ▷ U2
+        ---------------------------
+        E[Γ] ⊢ ∀x:T, U1 ▷ ∀x:T, U2
+    ```
+    '''
+    def __init__(self, red : Rem_reduction, x : Var, T : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `red` -> `E[Γ] ⊢ U1 ▷ U2`
+        - `x` -> `x`
+        - `T` -> `T`
+        '''
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ U1 ▷ U2')
+
+        self.Rem_type_check(x , Var, "x")
+
+        self.Rem_type_check(T, Term, 'T')
+
+        self.__red = red
+
+        super().__init__(red.E, red.Gamma, 
+            Prod(x, T, red.t1), Prod(x, T, red.t2)
+        )
+
+    def premises(self) -> str:
+        return self.__red.conclusion()
+
+
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_abstract_T(Rem_reduction):
+    '''
+    red-abstract-T
+    ```
+        E[Γ] ⊢ T1 ▷ T2
+        ---------------------------
+        E[Γ] ⊢ λx:T1, u ▷ λx:T2, u
+    ```
+    '''
+    def __init__(self, red : Rem_reduction, x : Var, u : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `E[Γ] ⊢ T1 ▷ T2`
+        - `x` -> `x`
+        - `u` -> `u`
+        '''
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ T1 ▷ T2')
+
+        self.Rem_type_check(x , Var, "x")
+
+        self.Rem_type_check(u, Term, 'u')
+
+        self.__red = red
+
+        super().__init__(red.E, red.Gamma, 
+            Abstract(x, red.t1, u), Abstract(x, red.t2, u)
+        )
+
+    def premises(self) -> str:
+        return self.__red.conclusion()
+
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_abstract_u(Rem_reduction):
+    '''
+    red-abstract-u
+    ```
+        E[Γ] ⊢ u1 ▷ u2
+        ---------------------------
+        E[Γ] ⊢ λx:T, u1 ▷ λx:T, u2
+    ```
+    '''
+    def __init__(self, red : Rem_reduction, x : Var, T : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `E[Γ] ⊢ u1 ▷ u2`
+        - `x` -> `x`
+        - `T` -> `T`
+        '''
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ u1 ▷ u2')
+
+        self.Rem_type_check(x , Var, "x")
+
+        self.Rem_type_check(T, Term, 'T')
+
+        self.__red = red
+
+        super().__init__(red.E, red.Gamma, 
+            Abstract(x, T, red.t1), Abstract(x, T, red.t2)
+        )
+
+    def premises(self) -> str:
+        return self.__red.conclusion()
+
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_apply_t(Rem_reduction):
+    '''
+    red-apply-t
+    ```
+        E[Γ] ⊢ t1 ▷ t2
+        ---------------------------
+        E[Γ] ⊢ t1 u ▷ t2 u
+    ```
+    '''
+    def __init__(self, red : Rem_reduction, u : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `E[Γ] ⊢ t1 ▷ t2`
+        - `u` -> `u`
+        '''
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ t1 ▷ t2')
+
+        self.Rem_type_check(u, Term, 'u')
+
+        self.__red = red
+
+        super().__init__(red.E, red.Gamma, 
+            Apply(red.t1, u), Apply(red.t2, u)
+        )
+
+    def premises(self) -> str:
+        return self.__red.conclusion()
+    
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_apply_u(Rem_reduction):
+    '''
+    red-apply-u
+    ```
+        E[Γ] ⊢ u1 ▷ u2
+        ---------------------------
+        E[Γ] ⊢ t u1 ▷ t u2
+    ```
+    '''
+    def __init__(self, red : Rem_reduction, t : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `E[Γ] ⊢ u1 ▷ u2`
+        - `t` -> `t`
+        '''
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ u1 ▷ u2')
+
+        self.Rem_type_check(t, Term, 't')
+
+        self.__red = red
+
+        super().__init__(red.E, red.Gamma, 
+            Apply(t, red.t1), Apply(t, red.t2)
+        )
+
+    def premises(self) -> str:
+        return self.__red.conclusion()
+    
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_let_in_t(Rem_reduction):
+    '''
+    red-let-in-t
+    ```
+        E[Γ] ⊢ t1 ▷ t2
+        -------------------------------------------
+        E[Γ] ⊢ let x:=t1:T in u ▷ let x:=t2:T in u
+    ```
+    '''
+    def __init__(self, red : Rem_reduction, T : Term, u : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `E[Γ] ⊢ t1 ▷ t2`
+        - `T` -> `T` 
+        - `u` -> `u`
+        '''
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ t1 ▷ t2')
+
+        self.Rem_type_check(T, Term, 'T')
+
+        self.Rem_type_check(u, Term, 'u')
+
+        self.__red = red
+
+        super().__init__(red.E, red.Gamma, 
+            Let_in(red.t1, T, u), Let_in(red.t2, T, u)
+        )
+
+    def premises(self) -> str:
+        return self.__red.conclusion()
+    
+
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_let_in_T(Rem_reduction):
+    '''
+    red-let-in-T
+    ```
+        E[Γ] ⊢ T1 ▷ T2
+        -------------------------------------------
+        E[Γ] ⊢ let x:=t:T1 in u ▷ let x:=t:T2 in u
+    ```
+    '''
+    def __init__(self, red : Rem_reduction, t : Term, u : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `E[Γ] ⊢ T1 ▷ T2`
+        - `t` -> `t` 
+        - `u` -> `u`
+        '''
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ T1 ▷ T2')
+
+        self.Rem_type_check(t, Term, 't')
+
+        self.Rem_type_check(u, Term, 'u')
+
+        self.__red = red
+
+        super().__init__(red.E, red.Gamma, 
+            Let_in(t, red.t1, u), Let_in(t, red.t2, u)
+        )
+
+    def premises(self) -> str:
+        return self.__red.conclusion()
+    
+
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_let_in_u(Rem_reduction):
+    '''
+    red-let-in-u
+    ```
+        E[Γ] ⊢ u1 ▷ u2
+        -------------------------------------------
+        E[Γ] ⊢ let x:=t:T in u1 ▷ let x:=t:T in u2
+    ```
+    '''
+    def __init__(self, red : Rem_reduction, t : Term, T : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `E[Γ] ⊢ u1 ▷ u2`
+        - `t` -> `t` 
+        - `T` -> `T`
+        '''
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ u1 ▷ u2')
+
+        self.Rem_type_check(t, Term, 't')
+
+        self.Rem_type_check(T, Term, 'T')
+
+        self.__red = red
+
+        super().__init__(red.E, red.Gamma, 
+            Let_in(t, T, red.t1), Let_in(t, T, red.t2)
+        )
+
+    def premises(self) -> str:
+        return self.__red.conclusion()
+    
+
+
+#############################################################
+# reduction sequence
+
+@Rem_term(rem_coc)
+class Rem_red_seq(RemProof):
+    '''
+    red-seq
+    ```
+        E[Γ] ⊢ t ▷ ... ▷ u
+    ```
+    A sequence of reduction relation.
+    '''
+    def __init__(self, E : Environment, Gamma : Context, t : Term, u : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `E` -> `E`
+        - `Gamma` -> `Γ`
+        - `t` -> `t`
+        - `u` -> `u`
+        '''
+
+        self.Rem_type_check(E, Environment, 'E')
+        self.Rem_type_check(Gamma, Context, 'Γ')
+        self.Rem_type_check(t, Term, 't')
+        self.Rem_type_check(u, Term, 'u')
+
+        self.__E = E
+        self.__Gamma = Gamma
+        self.__t = t
+        self.__u = u
+    
+    @property
+    def E(self) -> Environment:
+        return self.__E
+    
+    @property
+    def Gamma(self) -> Context:
+        return self.__Gamma
+    
+    @property
+    def t(self) -> Term:
+        return self.__t
+    
+    @property
+    def u(self) -> Term:
+        return self.__u
+    
+    def conclusion(self) -> str:
+        return f"{self.E}[{self.Gamma}] ⊢ {self.t} ▷ ... ▷ {self.u}"
+    
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_seq_refl(Rem_red_seq):
+    '''
+    red-seq-refl
+    ```
+        WF(E)[Γ]
+        --------------------
+        E[Γ] ⊢ t ▷ ... ▷ t
+    ```
+    '''
+    def __init__(self, wf : Rem_WF, t : Term):
+        '''
+        Parameters -> Rule Terms:
+        - `wf` -> `WF(E)[Γ]`
+        - `t` -> `t`
+        '''
+        self.Rem_type_check(wf, Rem_WF, 'WF(E)[Γ]')
+        self.Rem_type_check(t, Term, 't')
+
+        self.__wf = wf
+        super().__init__(wf.E, wf.Gamma, t, t)
+
+    def premises(self) -> str:
+        return self.__wf.conclusion()
+    
+
+@concrete_Rem_term(rem_coc)
+class Rem_red_seq_trans(Rem_red_seq):
+    '''
+    red-seq-trans
+    ```
+        E[Γ] ⊢ t1 ▷ ... ▷ t2
+        E[Γ] ⊢ t2 ▷ t3
+        --------------------
+        E[Γ] ⊢ t1 ▷ ... ▷ t3
+    ```
+    '''
+    def __init__(self, red_seq : Rem_red_seq, red : Rem_reduction):
+        '''
+        Parameters -> Rule Terms:
+        - `red_seq` -> `E[Γ] ⊢ t1 ▷ ... ▷ t2`
+        - `red` -> `E[Γ] ⊢ t2 ▷ t3`
+        '''
+        self.Rem_type_check(red_seq, Rem_red_seq, 'E[Γ] ⊢ t1 ▷ ... ▷ t2')
+        self.Rem_type_check(red, Rem_reduction, 'E[Γ] ⊢ t2 ▷ t3')
+
+        # consistent `t2`
+        self.Rem_consistency_check(red_seq.u, red.t1, "t2")
+
+        self.__red_seq = red_seq
+        self.__red = red
+        super().__init__(red_seq.E, red_seq.Gamma, red_seq.t, red.t2)
+
+    def premises(self) -> str:
+        res = self.__red_seq.conclusion() + "\n"
+        res += self.__red.conclusion() + "\n"
+        return res
+    
+
+
 @concrete_Rem_term(rem_coc)
 class Rem_convertible(RemProof):
     '''
@@ -380,10 +745,9 @@ class Rem_convertible(RemProof):
         ----------------------------------
         E[Γ] ⊢ t1 =βδιζη t2
     ```
-    Note : `E[Γ] ⊢ t1 ▷ ... ▷ u1` is also represented by `Rem_reduction` because of transitivity object `Rem_reduction_trans`.
     '''
 
-    def __init__(self, red1 : Rem_reduction, red2 : Rem_reduction, u_eq_proof : None | Rem_eta_conversion):
+    def __init__(self, red_seq1 : Rem_red_seq, red_seq2 : Rem_red_seq, u_eq_proof : None | Rem_eta_conversion):
         '''
         Parameters -> Rule Terms:
         - `red1` -> `E[Γ] ⊢ t1 ▷ ... ▷ u1`
@@ -393,23 +757,23 @@ class Rem_convertible(RemProof):
             - `Rem_eta_conversion` : proof by eta-conversion (automatically detect `u1` `u2`)
         '''
 
-        self.Rem_type_check(red1, Rem_reduction, 'E[Γ] ⊢ t1 ▷ ... ▷ u1')
+        self.Rem_type_check(red_seq1, Rem_red_seq, 'E[Γ] ⊢ t1 ▷ ... ▷ u1')
 
-        self.Rem_type_check(red2, Rem_reduction, 'E[Γ] ⊢ t2 ▷ ... ▷ u2')
+        self.Rem_type_check(red_seq2, Rem_red_seq, 'E[Γ] ⊢ t2 ▷ ... ▷ u2')
 
         self.Rem_type_check(u_eq_proof, (type(None), Rem_eta_conversion), 'u1 ~α u2 or u1 ~η u2 or u2 ~η u1')
 
         # consistent `E`
-        self.Rem_consistency_check(red1.E, red2.E, 'E')
+        self.Rem_consistency_check(red_seq1.E, red_seq2.E, 'E')
         
         # consistent `Γ`
-        self.Rem_consistency_check(red1.Gamma, red2.Gamma, 'Γ')
+        self.Rem_consistency_check(red_seq1.Gamma, red_seq2.Gamma, 'Γ')
 
         # branch : proof by alpha-conversion
         if u_eq_proof is None:
             self.Rem_other_check(
-                red1.t2.alpha_convertible(red2.t2),
-                f"proposed to proof by alpha-conversion, but '{red1.t2}' and '{red2.t2}' are not alpha-convertible."
+                red_seq1.u.alpha_convertible(red_seq2.u),
+                f"proposed to proof by alpha-conversion, but '{red_seq1.u}' and '{red_seq2.u}' are not alpha-convertible."
             )
             
         # branch : proof by eta-conversion
@@ -417,41 +781,41 @@ class Rem_convertible(RemProof):
             assert isinstance(u_eq_proof, Rem_eta_conversion)
 
             # consistent `E`
-            self.Rem_consistency_check(u_eq_proof.E, red1.E, 'E')
+            self.Rem_consistency_check(u_eq_proof.E, red_seq1.E, 'E')
             
             # consistent `Γ`
-            self.Rem_consistency_check(u_eq_proof.Gamma, red1.Gamma, 'Γ')
+            self.Rem_consistency_check(u_eq_proof.Gamma, red_seq1.Gamma, 'Γ')
 
             self.Rem_other_check(
-                ((red1.t2 == u_eq_proof.t and red2.t2 == u_eq_proof.lam) or (red1.t2 == u_eq_proof.lam and red2.t2 == u_eq_proof.t)),
+                ((red_seq1.u == u_eq_proof.t and red_seq2.u == u_eq_proof.lam) or (red_seq1.u == u_eq_proof.lam and red_seq2.u == u_eq_proof.t)),
                 f"Inconsistent eta-conversion proof : {u_eq_proof}."
             )
 
             
-        self.__red1 = red1
-        self.__red2 = red2
+        self.__red_seq1 = red_seq1
+        self.__red_seq2 = red_seq2
         self.__u_eq_proof = u_eq_proof
 
 
     @property
     def E(self) -> Environment:
-        return self.__red1.E
+        return self.__red_seq1.E
 
     @property
     def Gamma(self) -> Context:
-        return self.__red1.Gamma
+        return self.__red_seq1.Gamma
 
     @property
     def t1(self) -> Term:
-        return self.__red1.t1
+        return self.__red_seq1.t
 
     @property
     def t2(self) -> Term:
-        return self.__red1.t2
+        return self.__red_seq2.t
     
     def premises(self) -> str:
-        res = self.__red1.conclusion() + "\n"
-        res += self.__red2.conclusion() + "\n"
+        res = self.__red_seq1.conclusion() + "\n"
+        res += self.__red_seq2.conclusion() + "\n"
         if self.__u_eq_proof is not None:
             res += self.__u_eq_proof.conclusion() + "\n"
         return res

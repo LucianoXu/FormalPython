@@ -647,7 +647,7 @@ class Rem_Prod_Set(Rem_WT):
 
         self.Rem_other_check(
             (isinstance(s_sort.s, SProp) or isinstance(s_sort.s, Prop) or isinstance(s_sort.s, Set)), 
-            "'s ∈ {SProp, Prop, Set}' not satisfied."
+            f"'s ∈ {{SProp, Prop, Set}}' not satisfied for s = {s_sort.s}."
         )
 
 
@@ -711,7 +711,7 @@ class Rem_Prod_Type(Rem_WT):
 
         self.Rem_other_check(
             (isinstance(s_sort.s, SProp) or isinstance(s_sort.s, Type)),
-            "'s ∈ {SProp, Type(i)}' not satisfied."
+            f"'s ∈ {{SProp, Type(i)}}' not satisfied for s = {s_sort.s}."
         )
 
 
