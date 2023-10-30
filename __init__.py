@@ -1,5 +1,3 @@
-from . import coc
-
 from .rem_error import REM_Error
 from .rem_error import REM_SyntaxError
 from .rem_error import REM_type_check
