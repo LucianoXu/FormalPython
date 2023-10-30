@@ -142,14 +142,14 @@ class Environment(RemTerm):
         '''
         return Environment(self.__ls + (dec,))
     
-    def get_typing(self, const : Const) -> Term | None:
+    def __getitem__(self, const : Const) -> GlobalDec | None:
         '''
-        Return `T` for `const : T` or `const := t : T` in `self`.
+        Return `const : T` or `const := t : T` in `self`.
         Return `None` when `const` is not contained in `self.
         '''
         for c_dec in self.ls:
             if c_dec.c == const:
-                return c_dec.T
+                return c_dec
             
         return None
 

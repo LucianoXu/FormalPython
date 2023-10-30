@@ -449,7 +449,7 @@ class Abstract(BoundTerm):
         if x != self.x:
             T_sub = self.T.substitute(x, t)
             u_sub = self.u.substitute(x, t)
-            return Prod(self.x, T_sub, u_sub)
+            return Abstract(self.x, T_sub, u_sub)
         else:
             return self
         

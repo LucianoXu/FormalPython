@@ -33,18 +33,20 @@ def well_typed_pf(wf : Rem_WF, term : Term) -> Rem_WT:
     
     # Ax-Var
     elif isinstance(term, Var):
-        T = wf.Gamma.get_typing(term)
-        REM_other_check(T is not None, f"The variable '{term}' is not defined in the context.")
+        dec = wf.Gamma[term]
+        REM_other_check(dec is not None, f"The variable '{term}' is not defined in the context.")
 
-        x_dec_in_Gamma = Rem_Cont_Contain_Typing(LocalTyping(term, T), wf.Gamma)
+        assert dec is not None
+        x_dec_in_Gamma = Rem_Cont_Contain_Typing(LocalTyping(term, dec.T), wf.Gamma)
         return Rem_Var(wf, x_dec_in_Gamma)
     
     # Ax-Const
     elif isinstance(term, Const):
-        T = wf.E.get_typing(term)
-        REM_other_check(T is not None, f"The constant '{term}' is not defined in the environment.")
+        dec = wf.E[term]
+        REM_other_check(dec is not None, f"The constant '{term}' is not defined in the environment.")
 
-        c_dec_in_E = Rem_Env_Contain_Typing(GlobalTyping(term, T), wf.E)
+        assert dec is not None
+        c_dec_in_E = Rem_Env_Contain_Typing(GlobalTyping(term, dec.T), wf.E)
         return Rem_Const(wf, c_dec_in_E)
     
     elif isinstance(term, Prod):
