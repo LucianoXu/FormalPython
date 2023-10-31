@@ -6,7 +6,7 @@ R.E.M. Reliable Encode Mechanism
 
 from __future__ import annotations
 
-from typing import Type, Tuple, Any, TypeVar
+from typing import Type, Tuple, Any, TypeVar, Sequence
 from types import FunctionType
 
 import inspect
@@ -17,69 +17,6 @@ from .rem_error import REM_Error, REM_type_check, REM_other_check
 
 # a set of default lexing/parsing rules
 from . import syntax_parsing as syn
-
-
-
-class REMSystem:
-    '''
-    Every instance represents a REM system.
-    '''
-    counter : int = 2
-    def __init__(self):
-
-        self.registered : list[Type[RemTerm]] = [RemTerm, RemProof]
-
-        self.lexer : syn.PLYLexer = syn.PLYLexer(empty_mode=True)
-        self.parser : syn.PLYParser = syn.PLYParser(empty_mode=True)
-
-    def fuse_append(self, other : REMSystem) -> REMSystem:
-        '''
-        Fuse two `REMSystem` instances and return the result.
-        '''
-        res = REMSystem()
-
-        # fuse the registered `RemTerm` subclasses
-        res.registered = self.registered.copy()
-        for termcls in other.registered:
-            if termcls not in res.registered:
-                res.registered.append(termcls)
-
-        # fuse the lexing/parsing rule set
-        res.lexer = self.lexer.fuse_append(other.lexer)
-        res.parser = self.parser.fuse_append(other.parser)
-
-        return res
-
-
-        
-
-
-    def lexer_reserved(self, reserved_type : str, reserved_key : str):
-        self.lexer.add_reserved(reserved_type, reserved_key)
-
-    def lexer_token(self, token : str, rule : str | Any):
-        self.lexer.add_rule(token, rule)
-        
-    def lexer_literals(self, literal : str | list[str]):
-        self.lexer.add_literals(literal)
-
-    def parser_set_precedence(self, term : str, prec : int, assoc : str):
-        self.parser.set_precedence(term, prec, assoc)
-
-    def parser_rule(self, rule : Any):
-        self.parser.add_rule(rule)
-
-
-    def get_doc(self) -> str:
-        '''
-        Return the documentation of this Rem system.
-        '''
-
-        res = ""
-        for item in self.registered:
-            res += Rem_term_describe(item) + "\n\n"
-
-        return res
 
     
 
@@ -108,13 +45,14 @@ class RemTerm:
     All objects are by default abstract and cannot be instantiated.
     Use `@concrete_Rem_term` decorator to transform a class to concrete one.
     '''
-    Rem_term_name : str = 'Rem-term'
-    Rem_term_def : str  = '_'
-    term_order : int    = 0
+    Rem_term_name : str
+    Rem_term_def : str
+    term_order : int
+    Rem_term_count : int = 0
 
     # if this parsing rule (a function for ply) is given, it will be used to automatically construct the parsing system for this term.
     # reload this object as a staticmethod to define the parsing rule for subterms.
-    parsing_rule : None | FunctionType = None
+    parsing_rule : None | function = None
 
     # this attribute contains all the super terms of the current term. It will be used in type check of term instances and REM system fusion.
     super_term : set[Type[RemTerm]] = set()
@@ -175,129 +113,11 @@ class RemTerm:
         '''
         if not expr:
             raise REM_Error("\n({}): Rem does not accept because: \n\n{}\n\nRem reminds you of the rule.\n{}".format(self.Rem_term_name, reason, self.Rem_term_def))
-
-    
-T = TypeVar('T', bound = RemTerm)
-def Rem_term(rem_sys : REMSystem):
-    def real_dec(cls : Type[T]) -> Type[T]:
-        '''
-        Parse Rem term information from the docstring of `RemTerm` subclasses.
-        The docstring should be of form:
-        ```
-        Rem-term-name
-        "```"
-        Rem-term-def
-        "```"
-        intro-string ...
-        ```
-        '''
         
-        # register
-        cls.term_order = rem_sys.counter
-        rem_sys.counter += 1
-        rem_sys.registered.append(cls)
 
-        # automatically add the super term, only `RemTerm` superclasses are considered.
-        cls.super_term = set(
-            filter(
-                lambda x: issubclass(x, RemTerm), 
-                cls.__bases__
-            )
-        )
+###################################################################
+# methods on RemTerm
 
-        doc : str| None = cls.__doc__
-        try:
-            if doc is None:
-                raise ValueError()
-            pos1 = doc.index("```")
-            cls.Rem_term_name = doc[:pos1].replace("\n","").replace("\t","").replace(" ","")
-
-            doc = doc[pos1 + len("```"):]
-            pos2 = doc.index("```")
-            cls.Rem_term_def = doc[:pos2]
-        except ValueError:
-            raise Exception(f"Cannot process the Rem-term information of class {cls}.")
-
-
-        return cls
-    return real_dec    
-
-
-def concrete_Rem_term(rem_sys : REMSystem):
-    def real_dec(cls : Type[T]) -> Type[T]:
-        '''
-        Decorator for concrete Rem terms: reload the definition for `__new__` in the class definition by:
-        ```Python
-        def __new__(cls, *args, **kwargs):
-            return object.__new__(cls)
-        ```
-        '''
-
-        # process Rem_term informations
-        cls = Rem_term(rem_sys)(cls)
-
-        def concrete_new(cls, *args, **kwargs):
-            return object.__new__(cls)
-
-        cls.__new__ = concrete_new
-        cls.is_concrete = lambda self: True
-        
-        return cls
-    
-    return real_dec
-
-
-class RemProof(RemTerm):
-    '''
-    Rem-proof
-    ```
-    _
-    ```
-    The proof objects in REM.
-    '''
-    Rem_term_name   = 'Rem-proof'
-    Rem_term_def    = '_'
-    term_order      = 1
-
-    def premises(self) -> str:
-        raise NotImplementedError()
-    
-    def conclusion(self) -> str:
-        raise NotImplementedError()
-    
-    def full_proof(self) -> str:
-        space_len = len(self.Rem_term_name) + 3
-
-        # indent, premise
-        res = " " * space_len + self.premises()
-        if res[-1] == "\n":
-            res = res[:-1]
-        res = res.replace("\n", "\n" + " " * space_len)
-        res += "\n"
-
-        # line
-        res += f"({self.Rem_term_name}) " + "-"*40 + "\n" 
-
-        # indent conclusion
-        res += " " * space_len + self.conclusion() 
-        return res
-    
-    def __str__(self) -> str:
-        return self.conclusion()
-    
-
-
-####################################################################
-# tools for organizing layered lexing/parsing
-# powered by ply
-
-from ply import lex, yacc
-
-
-
-
-####################################################################
-# methods on Rem system
 
 def Rem_term_describe(mt : RemTerm | Type[RemTerm]) -> str:
     '''
@@ -306,39 +126,157 @@ def Rem_term_describe(mt : RemTerm | Type[RemTerm]) -> str:
     return f"({mt.Rem_term_name}):" + "\n" + mt.Rem_term_def
 
 
-def get_Rem_subclass(GLOBAL : dict[str, Any]) -> list[Type[RemTerm]]:
+###################################################################
+# decorators for initialization pocessing
+    
+T = TypeVar('T', bound = RemTerm)
+def Rem_term(cls : Type[T]) -> Type[T]:
     '''
-    For the given global namespace `GLOBAL`, it return all `RemTerm` subclasses in a sorted list.
+    Parse Rem term information from the docstring of `RemTerm` subclasses.
+    The docstring should be of form:
+    ```
+    Rem-term-name
+    "```"
+    Rem-term-def
+    "```"
+    intro-string ...
+    ```
     '''
-    Rem_terms = list(filter(
-        lambda obj : inspect.isclass(obj) and issubclass(obj, RemTerm),GLOBAL.values()
-    ))
-    Rem_terms.sort(key=lambda x: x.term_order)
-    return Rem_terms
+
+    # the automated ordering of `RemTerm` subclass definitions
+    cls.term_order = RemTerm.Rem_term_count
+    RemTerm.Rem_term_count += 1    
+
+    # automatically add the super term, only `RemTerm` superclasses are considered.
+    cls.super_term = set(
+        filter(
+            lambda x: issubclass(x, RemTerm), 
+            cls.__bases__
+        )
+    )
+
+    doc : str| None = cls.__doc__
+    try:
+        if doc is None:
+            raise Exception(f"Cannot introduce the class {cls.__name__} into Rem-system: no documentation string provided.")
+        
+        pos1 = doc.index("```")
+        cls.Rem_term_name = doc[:pos1].replace("\n","").replace("\t","").replace(" ","")
+
+        doc = doc[pos1 + len("```"):]
+        pos2 = doc.index("```")
+        cls.Rem_term_def = doc[:pos2]
+    except ValueError:
+        raise Exception(f"Cannot process the Rem-term information of class {cls}.")
 
 
-def Rem_system_build(rem_sys : REMSystem, file : str = "", parser_start : str | None = None) -> None:
+    return cls
+
+# process superclass `RemTerm`
+RemTerm = Rem_term(RemTerm)
+
+def concrete_Rem_term(cls : Type[T]) -> Type[T]:
     '''
-    Checks whether the Rem system given by `rem_sys` is well formed, prepare the lexer/parser components and generate the doc.
+    Decorator for concrete Rem terms: reload the definition for `__new__` in the class definition by:
+    ```Python
+    def __new__(cls, *args, **kwargs):
+        return object.__new__(cls)
+    ```
+    '''
 
-    - `rem_sys` : `REMSystem`.
-    - `file` : should pass in the `__file__` result
-    - `parser_start` : `str | None`, if not `None`: build the parser with this start symbol.
-    '''        
+    # process Rem_term informations
+    cls = Rem_term(cls)
 
-    if parser_start is not None:
+    def concrete_new(cls, *args, **kwargs):
+        return object.__new__(cls)
+
+    cls.__new__ = concrete_new
+    cls.is_concrete = lambda self: True
+    
+    return cls
+
+
+
+##############################################################################
+# Theory and functor
+
+class REMTheory:
+    '''
+    A `REMTheory` subclass represents a theory type in REM.
+    
+    Every instance of `REMTheory` subclasses represents an instance of this theory.
+
+    All `RemTerm` subclass attributes of `REMTheory` subclasses will be considered as terms in the corresponding theory.
+    '''
+    def __init__(self):
+
+        self.__lexer : syn.PLYLexer = syn.PLYLexer(empty_mode=True)
+        self.__parser : syn.PLYParser = syn.PLYParser(empty_mode=True)
+
+    @property
+    def theories(self) -> list[Type[RemTerm]]:
+        Rem_terms = list(filter(
+            lambda obj : inspect.isclass(obj) and issubclass(obj, RemTerm), self.__dict__.values()
+        ))
+        Rem_terms.sort(key=lambda x: x.term_order)
+        return Rem_terms
+
+    @property
+    def lexer(self) -> syn.PLYLexer:
+        return self.__lexer
+    
+    @property
+    def parser(self) -> syn.PLYParser:
+        return self.__parser
+
+    
+    def build_parser(self, parser_start : str) -> None:
+        '''
+        Prepare the lexer/parser components.
+
+        - `parser_start` : `str`, build the parser with this symbol.
+        '''        
         # build the lexer
-        rem_sys.lexer.build()
+        self.lexer.build()
 
         # collect the parsing rules
-        for cls in rem_sys.registered:
+        for cls in self.theories:
             if cls.parsing_rule is not None:
-                rem_sys.parser_rule(cls.parsing_rule)
+                self.parser.add_rule(cls.parsing_rule)
         
         # build the parser
-        rem_sys.parser.build(rem_sys.lexer, parser_start)
+        self.parser.build(self.lexer, parser_start)
 
 
-    # produce the rule doc
-    with open(os.path.join(os.path.dirname(file),"REM_rule.txt"), "w", encoding="utf-8") as p:
-        p.write(rem_sys.get_doc())
+    def fuse_append(self, other : REMTheory) -> None:
+        '''
+        Fuse two `REMSystem` instances.
+        '''
+
+        for term in other.theories:
+            self.__setattr__(term.__name__, term)
+
+        # fuse the lexing/parsing rule set
+        self.__lexer.fuse_append(other.lexer)
+        self.__parser.fuse_append(other.parser)
+
+
+    def get_doc(self) -> str:
+        '''
+        Return the documentation of this Rem system.
+        '''
+
+        res = ""
+        for item in self.theories:
+            res += Rem_term_describe(item) + "\n\n"
+
+        return res
+    
+    def gen_doc(self, path : str) -> None:
+        '''
+        Produce the rule documentation.
+
+        - `path` : `str`, the path to the output file.
+        '''
+        with open(path, "w", encoding="utf-8") as p:
+            p.write(self.get_doc())
