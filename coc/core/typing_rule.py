@@ -14,7 +14,7 @@ from .environment import *
 ################################################################
 # rule framework
 
-@Rem_term(rem_coc)
+@Rem_term
 class Rem_WF(RemProof):
     '''
     well-formed
@@ -45,7 +45,7 @@ class Rem_WF(RemProof):
     def conclusion(self) -> str:
         return f"WF({self.E}){self.Gamma}"
     
-@Rem_term(rem_coc)
+@Rem_term
 class Rem_WT(RemProof):
     '''
     well-typed
@@ -94,7 +94,7 @@ class Rem_WT(RemProof):
 ###############################################################
 # specific rules
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_W_Empty(Rem_WF):
     '''
     W-Empty
@@ -117,7 +117,7 @@ class Rem_W_Empty(Rem_WF):
         return ""
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_W_Local_Assum(Rem_WF):
     '''
     W-Local-Assum
@@ -167,7 +167,7 @@ class Rem_W_Local_Assum(Rem_WF):
         res += self.__x_notin_Gamma.conclusion() + "\n"
         return res
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_W_Local_Def(Rem_WF):
     '''
     W-Local-Def
@@ -209,7 +209,7 @@ class Rem_W_Local_Def(Rem_WF):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_W_Global_Assum(Rem_WF):
     '''
     W-Global-Assum
@@ -261,7 +261,7 @@ class Rem_W_Global_Assum(Rem_WF):
         res += self.__c_notin_E.conclusion() + "\n"
         return res
     
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_W_Global_Def(Rem_WF):
     '''
     W-Global-Def
@@ -305,7 +305,7 @@ class Rem_W_Global_Def(Rem_WF):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Ax_SProp(Rem_WT):
     '''
     Ax-SProp
@@ -334,7 +334,7 @@ class Rem_Ax_SProp(Rem_WT):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Ax_Prop(Rem_WT):
     '''
     Ax-Prop
@@ -362,7 +362,7 @@ class Rem_Ax_Prop(Rem_WT):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Ax_Set(Rem_WT):
     '''
     Ax-Set
@@ -390,7 +390,7 @@ class Rem_Ax_Set(Rem_WT):
         return res
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Ax_Type(Rem_WT):
     '''
     Ax-Type
@@ -424,7 +424,7 @@ class Rem_Ax_Type(Rem_WT):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Var(Rem_WT):
     '''
     Var
@@ -463,7 +463,7 @@ class Rem_Var(Rem_WT):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Const(Rem_WT):
     '''
     Const
@@ -502,7 +502,7 @@ class Rem_Const(Rem_WT):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Prod_SProp(Rem_WT):
     '''
     Prod-SProp
@@ -562,7 +562,7 @@ class Rem_Prod_SProp(Rem_WT):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Prod_Prop(Rem_WT):
     '''
     Prod-Prop
@@ -622,7 +622,7 @@ class Rem_Prod_Prop(Rem_WT):
         return res
     
     
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Prod_Set(Rem_WT):
     '''
     Prod-Set
@@ -686,7 +686,7 @@ class Rem_Prod_Set(Rem_WT):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Prod_Type(Rem_WT):
     '''
     Prod-Type
@@ -750,7 +750,7 @@ class Rem_Prod_Type(Rem_WT):
         return res
     
     
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Lam(Rem_WT):
     '''
     Lam
@@ -808,7 +808,7 @@ class Rem_Lam(Rem_WT):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_App(Rem_WT):
     '''
     App
@@ -858,7 +858,7 @@ class Rem_App(Rem_WT):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Let(Rem_WT):
     '''
     Let

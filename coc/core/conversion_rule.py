@@ -11,12 +11,10 @@ from .context import *
 from .environment import *
 from .typing_rule import Rem_WF, Rem_WT
 
-from ...rem import RemProof
-
 
 # alpha-conversion judgement is implemented in `Term`.
     
-@Rem_term(rem_coc)
+@Rem_term
 class Rem_reduction(RemProof):
     '''
     reduce
@@ -64,7 +62,7 @@ class Rem_reduction(RemProof):
         return f"{self.E}{self.Gamma} ⊢ {self.t1} ▷ {self.t2}"
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_beta_reduction(Rem_reduction):
     '''
     β-reduction
@@ -95,7 +93,7 @@ class Rem_beta_reduction(Rem_reduction):
         return ""
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_delta_reduction(Rem_reduction):
     '''
     δ-reduction
@@ -133,7 +131,7 @@ class Rem_delta_reduction(Rem_reduction):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Delta_reduction(Rem_reduction):
     '''
     Δ-reduction
@@ -174,7 +172,7 @@ class Rem_Delta_reduction(Rem_reduction):
 # ι-reduction is omitted here.
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_zeta_reduction(Rem_reduction):
     '''
     ζ-reduction
@@ -236,7 +234,7 @@ class Rem_zeta_reduction(Rem_reduction):
         return res
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_eta_conversion(RemProof):
     '''
     η-expansion (conversion)
@@ -328,7 +326,7 @@ class Rem_eta_conversion(RemProof):
 #############################################################
 # rules for compatibility of reduction with term construction
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_prod_T(Rem_reduction):
     '''
     red-prod-T
@@ -361,7 +359,7 @@ class Rem_red_prod_T(Rem_reduction):
         return self.__red.conclusion()
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_prod_U(Rem_reduction):
     '''
     red-prod-T
@@ -395,7 +393,7 @@ class Rem_red_prod_U(Rem_reduction):
 
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_abstract_T(Rem_reduction):
     '''
     red-abstract-T
@@ -428,7 +426,7 @@ class Rem_red_abstract_T(Rem_reduction):
         return self.__red.conclusion()
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_abstract_u(Rem_reduction):
     '''
     red-abstract-u
@@ -461,7 +459,7 @@ class Rem_red_abstract_u(Rem_reduction):
         return self.__red.conclusion()
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_apply_t(Rem_reduction):
     '''
     red-apply-t
@@ -491,7 +489,7 @@ class Rem_red_apply_t(Rem_reduction):
         return self.__red.conclusion()
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_apply_u(Rem_reduction):
     '''
     red-apply-u
@@ -521,7 +519,7 @@ class Rem_red_apply_u(Rem_reduction):
         return self.__red.conclusion()
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_let_in_t(Rem_reduction):
     '''
     red-let-in-t
@@ -555,7 +553,7 @@ class Rem_red_let_in_t(Rem_reduction):
     
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_let_in_T(Rem_reduction):
     '''
     red-let-in-T
@@ -589,7 +587,7 @@ class Rem_red_let_in_T(Rem_reduction):
     
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_let_in_u(Rem_reduction):
     '''
     red-let-in-u
@@ -626,7 +624,7 @@ class Rem_red_let_in_u(Rem_reduction):
 #############################################################
 # reduction sequence
 
-@Rem_term(rem_coc)
+@Rem_term
 class Rem_red_seq(RemProof):
     '''
     red-seq
@@ -674,7 +672,7 @@ class Rem_red_seq(RemProof):
         return f"{self.E}[{self.Gamma}] ⊢ {self.t} ▷ ... ▷ {self.u}"
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_seq_refl(Rem_red_seq):
     '''
     red-seq-refl
@@ -700,7 +698,7 @@ class Rem_red_seq_refl(Rem_red_seq):
         return self.__wf.conclusion()
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_seq_trans(Rem_red_seq):
     '''
     red-seq-trans
@@ -734,7 +732,7 @@ class Rem_red_seq_trans(Rem_red_seq):
     
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_convertible(RemProof):
     '''
     βδιζη-convertible.
@@ -828,7 +826,7 @@ class Rem_convertible(RemProof):
 # Subtyping conversion.
 ###
 
-@Rem_term(rem_coc)
+@Rem_term
 class Rem_subtyping(RemProof):
     '''
     subtype
@@ -874,7 +872,7 @@ class Rem_subtyping(RemProof):
     def conclusion(self) -> str:
         return f"{self.E}{self.Gamma} ⊢ {self.t1} ≤βδιζη {self.t2}"
 
-@Rem_term(rem_coc)
+@Rem_term
 class Rem_subtyping_trans(Rem_subtyping):
     '''
     subtype-trans
@@ -917,7 +915,7 @@ class Rem_subtyping_trans(Rem_subtyping):
         return res
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_subtyping_convert(Rem_subtyping):
     '''
     subtype-convert
@@ -944,7 +942,7 @@ class Rem_subtyping_convert(Rem_subtyping):
         return self.__convert.conclusion() + "\n"
     
     
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_subtyping_universe(Rem_subtyping):
     '''
     subtype-universe
@@ -975,7 +973,7 @@ class Rem_subtyping_universe(Rem_subtyping):
         return f"{self.__i} ≤ {self.__j}"
         
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_subtyping_Set(Rem_subtyping):
     '''
     subtype-Set
@@ -1005,7 +1003,7 @@ class Rem_subtyping_Set(Rem_subtyping):
         return ""
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_subtyping_Prop(Rem_subtyping):
     '''
     subtype-Prop
@@ -1027,7 +1025,7 @@ class Rem_subtyping_Prop(Rem_subtyping):
     def premises(self) -> str:
         return ""
     
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_subtyping_lam(Rem_subtyping):
     '''
     subtype-lam
@@ -1084,7 +1082,7 @@ class Rem_subtyping_lam(Rem_subtyping):
 # the Convertible proof (with subtyping) #
 ##########################################
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Conv(Rem_WT):
     '''
     Conv

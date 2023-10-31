@@ -3,14 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Type, List, Tuple
 
-from .rem_sys_head import *
-from ...rem import syn
+from Rem import *
 
 
 #############################################################
 # The definition for terms
 
-@Rem_term(rem_coc)
+@Rem_term
 class Term(RemTerm):
     '''
     term
@@ -65,7 +64,7 @@ class Term(RemTerm):
 # The Sorts.
 ####
 
-@Rem_term(rem_coc)
+@Rem_term
 class Sort(Term):
     '''
     sort
@@ -92,7 +91,7 @@ class Sort(Term):
         return False
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class SProp(Sort):
     '''
     term-SProp
@@ -104,7 +103,7 @@ class SProp(Sort):
     def __str__(self) -> str:
         return "SProp"
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Prop(Sort):
     '''
     term-Prop
@@ -116,7 +115,7 @@ class Prop(Sort):
     def __str__(self) -> str:
         return "Prop"
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Set(Sort):
     '''
     term-Set
@@ -128,7 +127,7 @@ class Set(Sort):
     def __str__(self) -> str:
         return "Set"
         
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Type_i(Sort):
     '''
     term-Type
@@ -160,7 +159,7 @@ class Type_i(Sort):
 # Other term constructions.
 ###
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Var(Term):
     '''
     term-Var
@@ -225,7 +224,7 @@ class Var(Term):
 
         return Var(x)
     
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Const(Term):
     '''
     term-Const
@@ -274,7 +273,7 @@ class Const(Term):
 # Terms that contain a bound variable.
 ###
 
-@Rem_term(rem_coc)
+@Rem_term
 class BoundTerm(Term):
     '''
     term-bound
@@ -299,7 +298,7 @@ class BoundTerm(Term):
         '''
         raise NotImplementedError()
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Prod(BoundTerm):
     '''
     term-prod
@@ -384,7 +383,7 @@ class Prod(BoundTerm):
         
         return Prod(var, self.T.substitute(self.x, var), self.U.substitute(self.x, var))
         
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Abstract(BoundTerm):
     '''
     term-lambda
@@ -458,7 +457,7 @@ class Abstract(BoundTerm):
         
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Apply(Term):
     '''
     term-apply
@@ -512,7 +511,7 @@ class Apply(Term):
         return Apply(self.t.substitute(x, t), self.u.substitute(x, t))
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Let_in(BoundTerm):
     '''
     term-let-in
@@ -595,7 +594,7 @@ class Let_in(BoundTerm):
 # Rem proof objects
 ###
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_IsSort(RemProof):
     '''
     is-sort

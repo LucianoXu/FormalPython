@@ -10,7 +10,7 @@ from ..core import *
 from .type_calc import well_typed_pf
 from .var_dec import local_def
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_red_seq_alg(Rem_red_seq):
     '''
     red-seq-alg

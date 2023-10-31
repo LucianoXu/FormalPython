@@ -7,14 +7,13 @@ See (https://coq.inria.fr/refman/language/cic.html#global-environment).
 from __future__ import annotations
 
 from .term import *
-from ...rem import RemProof
 
 
 ##############################################################
 # Global Environment
 ###
 
-@Rem_term(rem_coc)
+@Rem_term
 class GlobalDec(RemTerm):
     '''
     global-dec
@@ -47,7 +46,7 @@ class GlobalDec(RemTerm):
     def T(self) -> Term:
         return self.__T
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class GlobalTyping(GlobalDec):
     '''
     global-assum
@@ -64,7 +63,7 @@ class GlobalTyping(GlobalDec):
     def __str__(self) -> str:
         return f"({self.c} : {self.T})"
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class GlobalDef(GlobalDec):
     '''
     global-def
@@ -97,7 +96,7 @@ class GlobalDef(GlobalDec):
         return f"({self.c} := {self.t} : {self.T})"
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Environment(RemTerm):
     '''
     global-environment
@@ -154,7 +153,7 @@ class Environment(RemTerm):
         return None
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Env_Not_Contain_Const(RemProof):
     '''
     not-in-global
@@ -194,7 +193,7 @@ class Rem_Env_Not_Contain_Const(RemProof):
         return f"{self.c} ∉ {self.E}"
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Env_Contain_Const(RemProof):
     '''
     const-in-global
@@ -239,7 +238,7 @@ class Rem_Env_Contain_Const(RemProof):
         return f"{self.c} ∈ {self.E}"
 
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Env_Contain_Typing(RemProof):
     '''
     assum-in-global
@@ -292,7 +291,7 @@ class Rem_Env_Contain_Typing(RemProof):
         return f"{self.c_typing} ∈ {self.E}"
     
 
-@concrete_Rem_term(rem_coc)
+@concrete_Rem_term
 class Rem_Env_Contain_Def(RemProof):
     '''
     def-in-global

@@ -116,9 +116,9 @@ class PLYLexer:
     
 
     # fusion
-    def fuse_append(self, other : PLYLexer) -> PLYLexer:
+    def fuse_append(self, other : PLYLexer) -> None:
         '''
-        Fuse the two lexer definitions and return the result.
+        Fuse the two lexer definitions.
         It will update the definitions of `other` on `self`.
         It means that definitions from `other` will be used when conflicts happen.
 
@@ -126,16 +126,12 @@ class PLYLexer:
         '''
         REM_type_check(other, PLYLexer)
 
-        res = PLYLexer(True)
+        self.reserved = self.reserved.copy()
+        self.reserved.update(other.reserved)
 
-        res.reserved = self.reserved.copy()
-        res.reserved.update(other.reserved)
-
-        res.unreserved_tokens = self.unreserved_tokens + other.unreserved_tokens
+        self.unreserved_tokens = self.unreserved_tokens + other.unreserved_tokens
         self.literals = self.literals + other.literals
-        res.stack = self.stack + other.stack
-
-        return res
+        self.stack = self.stack + other.stack
 
 
 
@@ -236,7 +232,7 @@ class PLYParser:
 
 
 
-    def add_rule(self, rule : FunctionType):
+    def add_rule(self, rule : function):
         '''
         Add a parsing rule to this `PLYParser` instance. The name will be automaticall extracted from the documentation of the rule function.
         '''
@@ -289,27 +285,35 @@ class PLYParser:
         return self.parser.parse(raw, lexer = self.plylexer.lexer)
     
     # fusion
-    def fuse_append(self, other : PLYParser) -> PLYParser:
+    def fuse_append(self, other : PLYParser) -> None:
         '''
-        Fuse the two parser definitions and return the result.
+        Fuse the two parser definitions.
         It will update the definitions of `other` on `self`.
         It means that definitions from `other` will be used when conflicts happen.
         '''
 
         REM_type_check(other, PLYParser)
 
-        res = PLYParser(True)
-
         # fuse the precedence table
         for i in range(PLYParser.MAX_PRECEDENCE):
-            if self.prec_tab[i][0] != other.prec_tab[i][0]:
-                raise REM_Error(f"Rem cannot fuse the two parsing rule sets because of precedence conflicts: for precedence {i}, one rule set has associativity '{self.prec_tab[i][0]}' and the other has '{other.prec_tab[i][0]}'.")
+            assoc : str | None
+            if self.prec_tab[i][0] is None:
+                if other.prec_tab[i][0] is None:
+                    assoc = None
+                else:
+                    assoc = other.prec_tab[i][0]
+            else:
+                if other.prec_tab[i][0] is None:
+                    assoc = self.prec_tab[i][0]
+                else:
+                    if self.prec_tab[i][0] != other.prec_tab[i][0]:
+                        raise REM_Error(f"Rem cannot fuse the two parsing rule sets because of precedence conflicts: for precedence {i}, one rule set has associativity '{self.prec_tab[i][0]}' and the other has '{other.prec_tab[i][0]}'.")
+                    assoc = self.prec_tab[i][0]
+                
             
-            res.prec_tab[i] = (self.prec_tab[i][0], self.prec_tab[i][1] + other.prec_tab[i][1])
+            self.prec_tab[i] = (assoc, self.prec_tab[i][1] + other.prec_tab[i][1])
 
-        res.stack = self.stack + other.stack
-
-        return res
+        self.stack = self.stack + other.stack
 
         
 
