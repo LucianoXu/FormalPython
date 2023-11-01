@@ -247,18 +247,18 @@ class PLYParser:
         self.stack.append((name, rule))
 
 
-    def build(self, plylexer : PLYLexer, start_symbol : str):
+    def build(self, plylexer : PLYLexer, start_symbol : str | None):
         '''
         - `plylexer` : `PLYLexer`, a built `PLYLexer` instance
-        - `start_symbol` : `str`, the start symbol.
+        - `start_symbol` : `str | None`, 
+            `str`: the start symbol,
+            `None`: dry run, only process the parser information
         '''
 
         REM_type_check(plylexer, PLYLexer)
 
         self.__build_data = PLYParser.BuildData()
 
-        # set the start symbol
-        self.build_data.start = start_symbol
 
         # set the token
         self.build_data.tokens = plylexer.build_data.tokens
@@ -277,7 +277,11 @@ class PLYParser:
         for name, rule in self.stack:
             setattr(self.build_data, f"p_{name}", rule)
 
-        self.__parser = yacc.yacc(module=self.build_data)
+        # set the start symbol and build
+        if start_symbol is not None:
+            self.build_data.start = start_symbol
+            self.__parser = yacc.yacc(module=self.build_data)
+
         self.plylexer = plylexer
 
     # interface

@@ -6,7 +6,7 @@ R.E.M. Reliable Encode Mechanism
 
 from __future__ import annotations
 
-from typing import Type, Tuple, Any, TypeVar, Sequence
+from typing import Type, Tuple, Any, TypeVar, Sequence, List
 from types import FunctionType
 
 import inspect
@@ -54,8 +54,18 @@ class RemTerm:
     # reload this object as a staticmethod to define the parsing rule for subterms.
     parsing_rule : None | function = None
 
+    # if not `None`, it will add the literals to the `REMTheory` lexer.
+    lexing_literals : None | List[str] = None
+
     # this attribute contains all the super terms of the current term. It will be used in type check of term instances and REM system fusion.
     super_term : set[Type[RemTerm]] = set()
+
+
+    def __eq__(self, other) -> bool:
+        '''
+        Disable default equivalence judgement.
+        '''
+        raise NotImplementedError()
 
 
     @property
@@ -84,16 +94,29 @@ class RemTerm:
         Raise a `REM_Error` when the type does not match.
         This is intended for the check for correct operations.
         '''
-        # for `RemTerm` terms, we do the subterm check
-        if isinstance(T, tuple):
-            for t in T:
-                if is_subterm_class(type(obj), t):
-                    return
+        # for `RemTerm` subclasses
+        if inspect.isclass(obj):
+            if isinstance(T, tuple):
+                for t in T:
+                    if is_subterm_class(obj, t):
+                        return
+                
+                raise REM_Error("\n({}): The term '{}' should be a subclass of some type in \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}\n\n'{}'\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, self.Rem_term_def))
             
-            raise REM_Error("\n({}): The term '{}' should be a subterm of some type in \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}'\n\nactually has type \n\n'{}'\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, type(obj), self.Rem_term_def))
-        
-        elif not is_subterm_class(type(obj), T):
-            raise REM_Error("\n({}): The term '{}' should be a subterm of \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}'\n\nactually has type \n\n'{}'\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, type(obj), self.Rem_term_def))
+            elif not is_subterm_class(obj, T):
+                raise REM_Error("\n({}): The term '{}' should be a subclass of \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}'\n\n\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, self.Rem_term_def))
+
+        # for `RemTerm` terms, we do the subterm check
+        else:
+            if isinstance(T, tuple):
+                for t in T:
+                    if is_subterm_class(type(obj), t):
+                        return
+                
+                raise REM_Error("\n({}): The term '{}' should be a subterm of some type in \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}'\n\nactually has type \n\n'{}'\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, type(obj), self.Rem_term_def))
+            
+            elif not is_subterm_class(type(obj), T):
+                raise REM_Error("\n({}): The term '{}' should be a subterm of \n\n'{}'\n\nbut Rem found the instantiation \n\n'{}'\n\nactually has type \n\n'{}'\n\n Rem reminds you of the rule.\n{}".format(self.Rem_term_name, term, T, obj, type(obj), self.Rem_term_def))
         
 
     def Rem_consistency_check(self, a, b, term : str) -> None:
@@ -148,7 +171,7 @@ def Rem_term(cls : Type[T]) -> Type[T]:
     RemTerm.Rem_term_count += 1    
 
     # automatically add the super term, only `RemTerm` superclasses are considered.
-    cls.super_term = set(
+    cls.super_term = cls.super_term | set(
         filter(
             lambda x: issubclass(x, RemTerm), 
             cls.__bases__
@@ -200,8 +223,15 @@ def concrete_Rem_term(cls : Type[T]) -> Type[T]:
 ##############################################################################
 # Theory and functor
 
-class REMTheory:
+@Rem_term
+class REMTheory(RemTerm):
     '''
+    rem-theory
+    ```
+        theory1, theory2, ...
+        ---------------------
+        theory
+    ```
     A `REMTheory` subclass represents a theory type in REM.
     
     Every instance of `REMTheory` subclasses represents an instance of this theory.
@@ -216,7 +246,8 @@ class REMTheory:
     @property
     def theories(self) -> list[Type[RemTerm]]:
         Rem_terms = list(filter(
-            lambda obj : inspect.isclass(obj) and issubclass(obj, RemTerm), self.__dict__.values()
+            lambda obj : (inspect.isclass(obj) and issubclass(obj, RemTerm)),
+            self.__dict__.values()
         ))
         Rem_terms.sort(key=lambda x: x.term_order)
         return Rem_terms
@@ -230,19 +261,27 @@ class REMTheory:
         return self.__parser
 
     
-    def build_parser(self, parser_start : str) -> None:
+    def build_parser(self, parser_start : str | None) -> None:
         '''
         Prepare the lexer/parser components.
 
-        - `parser_start` : `str`, build the parser with this symbol.
+        - `start_symbol` : `str | None`, 
+            `str`: the start symbol,
+            `None`: dry run, only process the parser information
         '''        
-        # build the lexer
-        self.lexer.build()
 
         # collect the parsing rules
         for cls in self.theories:
+            # literals for lexer
+            if cls.lexing_literals is not None:
+                self.lexer.add_literals(cls.lexing_literals)
+
+            # rules for parser
             if cls.parsing_rule is not None:
                 self.parser.add_rule(cls.parsing_rule)
+                
+        # build the lexer
+        self.lexer.build()
         
         # build the parser
         self.parser.build(self.lexer, parser_start)
