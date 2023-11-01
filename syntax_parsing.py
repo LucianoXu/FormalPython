@@ -77,12 +77,16 @@ class PLYLexer:
 
         if isinstance(rule, str):
             self.stack.append((token, rule))
-            self.unreserved_tokens.append(token)
+
+            if token not in ['ignore', 'COMMENT']:
+                self.unreserved_tokens.append(token)
 
         elif isinstance(rule, FunctionType):
             rule.__name__ = f"t_{token}"
             self.stack.append((token, rule))
-            self.unreserved_tokens.append(token)
+
+            if token not in ['ignore', 'COMMENT']:
+                self.unreserved_tokens.append(token)
 
         else:
             raise REM_Error(f"Rem detected the invalid lexing rule '{rule}'.")
@@ -106,6 +110,7 @@ class PLYLexer:
             setattr(self.build_data, f"t_{token}", rule)
 
         self.build_data.tokens = list(self.reserved.values()) + self.unreserved_tokens
+
         self.__lexer = lex.lex(self.build_data)
 
     # interface
@@ -214,7 +219,7 @@ class PLYParser:
 
     def set_precedence(self, term : str, prec : int, assoc : str):
         '''
-        Set the precedence of the term.
+        Set the precedence of the term. #TODO #8
         '''
         REM_type_check(term, str)
         REM_type_check(prec, int)

@@ -11,6 +11,7 @@ from types import FunctionType
 
 import inspect
 import os
+import copy
 
 from .rem_error import REM_Error, REM_type_check, REM_other_check
 
@@ -76,6 +77,7 @@ class RemTerm:
         return Rem_term_describe(self)
 
     def __new__(cls, *args, **kwargs):
+        '''Abstract Class Check'''
         raise REM_Error(f"Cannot instantiate abstract proof object {cls}.")
 
     def is_concrete(self) -> bool:
@@ -200,20 +202,25 @@ RemTerm = Rem_term(RemTerm)
 
 def concrete_Rem_term(cls : Type[T]) -> Type[T]:
     '''
-    Decorator for concrete Rem terms: reload the definition for `__new__` in the class definition by:
+    Decorator for concrete Rem terms.
+     
+    If the `__new__` method for the class is not reloaded, reload the definition for `__new__` in the class definition by:
     ```Python
     def __new__(cls, *args, **kwargs):
         return object.__new__(cls)
     ```
+    (Note that the `__doc__` string for `__new__` must not be: "Abstract Class Check".)
     '''
 
     # process Rem_term informations
     cls = Rem_term(cls)
 
-    def concrete_new(cls, *args, **kwargs):
-        return object.__new__(cls)
+    # check whether the `__new__` method needs rewriting
+    if cls.__new__.__doc__ == "Abstract Class Check":
+        def concrete_new(cls, *args, **kwargs):
+            return object.__new__(cls)
+        cls.__new__ = concrete_new
 
-    cls.__new__ = concrete_new
     cls.is_concrete = lambda self: True
     
     return cls
@@ -293,7 +300,8 @@ class REMTheory(RemTerm):
         '''
 
         for term in other.theories:
-            self.__setattr__(term.__name__, term)
+            # we copy the theory because we may make modifications
+            self.__setattr__(term.__name__, copy.copy(term))
 
         # fuse the lexing/parsing rule set
         self.__lexer.fuse_append(other.lexer)
