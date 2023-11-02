@@ -53,7 +53,7 @@ class RemTerm:
 
     # if this parsing rule (a function for ply) is given, it will be used to automatically construct the parsing system for this term.
     # reload this object as a staticmethod to define the parsing rule for subterms.
-    parsing_rule : None | function = None
+    parsing_rule : None | function | List[function] = None
 
     # if not `None`, it will add the literals to the `REMTheory` lexer.
     lexing_literals : None | List[str] = None
