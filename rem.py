@@ -51,12 +51,34 @@ class RemTerm:
     term_order : int
     Rem_term_count : int = 0
 
+
+
+    # the precedence of this term. applied in parsing and printing
+    precedence : None | Tuple[str, int, str] = None
+
+    # if not `None`, it will add the literals to the `REMTheory` lexer.
+    lexing_literals : None | List[str] = None
+
     # if this parsing rule (a function for ply) is given, it will be used to automatically construct the parsing system for this term.
     # reload this object as a staticmethod to define the parsing rule for subterms.
     parsing_rule : None | function | List[function] = None
 
-    # if not `None`, it will add the literals to the `REMTheory` lexer.
-    lexing_literals : None | List[str] = None
+    @staticmethod
+    def lexer_mod(lexer : syn.PLYLexer):
+        '''
+        Other modifications on the lexer can be put here.
+        During initialization, the lexer of `REMTheory` instances will be passed in by the parameter.
+        '''
+        pass
+
+    @staticmethod
+    def parser_mod(parser : syn.PLYParser):
+        '''
+        Other modifications of the parser can be put here.
+        During initialization, the parser of `REMTheory` instances will be passed in by the parameter.
+        '''
+        pass
+
 
     # this attribute contains all the super terms of the current term. It will be used in type check of term instances and REM system fusion.
     super_term : set[Type[RemTerm]] = set()
@@ -79,6 +101,37 @@ class RemTerm:
     def __new__(cls, *args, **kwargs):
         '''Abstract Class Check'''
         raise REM_Error(f"Cannot instantiate abstract proof object {cls}.")
+    
+
+    def enclosed(self) -> str:
+        '''
+        Return the enclosed string of itself.
+        Reload this method to redefine enclosing.
+        '''
+        return f"({self})"
+    
+    def ctx_str(self, super_term : RemTerm, left : bool = True) -> str:
+        '''
+        Use `ctx_str` instead of `__str__` when this term may need enclosing.
+
+        According to the context of `super_term`, decide whether enclose the string of itself, and return the result.
+        - `left`: for binary operators only. whether this term is the left one or the right one.
+        '''
+        if super_term.precedence is None or self.precedence is None:
+            return str(self)
+        elif super_term.precedence[1] > self.precedence[1]:
+            return self.enclosed()
+        elif super_term.precedence[1] < self.precedence[1]:
+            return str(self)
+        else:
+            # equal precedence
+            if (self.precedence[2] == 'left' and left == False)\
+            or (self.precedence[2] == 'right' and left == True):
+                return self.enclosed()
+            else:
+                return str(self)
+
+
 
     def is_concrete(self) -> bool:
         return False
@@ -283,9 +336,16 @@ class REMTheory(RemTerm):
             if cls.lexing_literals is not None:
                 self.lexer.add_literals(cls.lexing_literals)
 
+            cls.lexer_mod(self.lexer)
+
             # rules for parser
             if cls.parsing_rule is not None:
                 self.parser.add_rule(cls.parsing_rule)
+
+            if cls.precedence is not None:
+                self.parser.set_precedence(*cls.precedence)
+
+            cls.parser_mod(self.parser)
                 
         # build the lexer
         self.lexer.build()
