@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Tuple, List
 from types import FunctionType
 
 from ply import lex, yacc
@@ -10,6 +10,8 @@ from ply import lex, yacc
 from .syntax_rules import *
 
 from .rem_error import REM_Error, REM_type_check
+
+import inspect
 
 
 ###################################
@@ -77,12 +79,16 @@ class PLYLexer:
 
         if isinstance(rule, str):
             self.stack.append((token, rule))
-            self.unreserved_tokens.append(token)
+
+            if token not in ['ignore', 'COMMENT']:
+                self.unreserved_tokens.append(token)
 
         elif isinstance(rule, FunctionType):
             rule.__name__ = f"t_{token}"
             self.stack.append((token, rule))
-            self.unreserved_tokens.append(token)
+
+            if token not in ['ignore', 'COMMENT']:
+                self.unreserved_tokens.append(token)
 
         else:
             raise REM_Error(f"Rem detected the invalid lexing rule '{rule}'.")
@@ -106,6 +112,7 @@ class PLYLexer:
             setattr(self.build_data, f"t_{token}", rule)
 
         self.build_data.tokens = list(self.reserved.values()) + self.unreserved_tokens
+
         self.__lexer = lex.lex(self.build_data)
 
     # interface
@@ -214,7 +221,7 @@ class PLYParser:
 
     def set_precedence(self, term : str, prec : int, assoc : str):
         '''
-        Set the precedence of the term.
+        Set the precedence of the term. #TODO #8
         '''
         REM_type_check(term, str)
         REM_type_check(prec, int)
@@ -232,33 +239,44 @@ class PLYParser:
 
 
 
-    def add_rule(self, rule : function):
+    def add_rule(self, rule : function | List[function]):
         '''
         Add a parsing rule to this `PLYParser` instance. The name will be automaticall extracted from the documentation of the rule function.
         '''
 
-        if not isinstance(rule, FunctionType) or rule.__doc__ is None:
+        if isinstance(rule, FunctionType):
+
+            if rule.__doc__ is None:
+                raise REM_Error(f"Rem detected the invalid rule function '{rule}'.")
+                    
+            doc = rule.__doc__
+            pos = doc.index(":")
+            name = doc[:pos].replace("\n","").replace(" ","").replace("\t", "")
+
+            self.stack.append((name, rule))
+
+        elif isinstance(rule, list):
+
+            for term in rule:
+                self.add_rule(term)
+        else:
             raise REM_Error(f"Rem detected the invalid rule function '{rule}'.")
-        
-        doc = rule.__doc__
-        pos = doc.index(":")
-        name = doc[:pos].replace("\n","").replace(" ","").replace("\t", "")
 
-        self.stack.append((name, rule))
+            
 
 
-    def build(self, plylexer : PLYLexer, start_symbol : str):
+    def build(self, plylexer : PLYLexer, start_symbol : str | None):
         '''
         - `plylexer` : `PLYLexer`, a built `PLYLexer` instance
-        - `start_symbol` : `str`, the start symbol.
+        - `start_symbol` : `str | None`, 
+            `str`: the start symbol,
+            `None`: dry run, only process the parser information
         '''
 
         REM_type_check(plylexer, PLYLexer)
 
         self.__build_data = PLYParser.BuildData()
 
-        # set the start symbol
-        self.build_data.start = start_symbol
 
         # set the token
         self.build_data.tokens = plylexer.build_data.tokens
@@ -277,7 +295,11 @@ class PLYParser:
         for name, rule in self.stack:
             setattr(self.build_data, f"p_{name}", rule)
 
-        self.__parser = yacc.yacc(module=self.build_data)
+        # set the start symbol and build
+        if start_symbol is not None:
+            self.build_data.start = start_symbol
+            self.__parser = yacc.yacc(module=self.build_data)
+
         self.plylexer = plylexer
 
     # interface
