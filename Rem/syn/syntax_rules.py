@@ -2,7 +2,7 @@
 This file contains the common syntax rules.
 '''
 
-from .rem_error import *
+from ..rem_error import *
 
 #############################################################
 # Common lexing rules
@@ -36,7 +36,7 @@ def t_newline(t):
     t.lexer.lineno += len(t.value)
 
 def t_error(t):
-    raise REM_SyntaxError(f"Syntax Error: Illegal character '{t.value[0]}'. (line {t.lineno})")
+    raise REM_Syntax_Error(f"Syntax Error: Illegal character '{t.value[0]}'. (line {t.lineno})")
 
 
 #############################################################
@@ -45,5 +45,5 @@ def t_error(t):
 
 def p_error(p):
     if p is None:
-        raise REM_SyntaxError("unexpected end of file")
-    raise REM_SyntaxError(f"Syntax error in input: '{str(p.value)}'.")
+        raise REM_Syntax_Error("Empty or incomplete input.")
+    raise REM_Syntax_Error(f"Syntax error in input: '{str(p.value)}'.")
