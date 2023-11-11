@@ -3,4 +3,4 @@ __pycache__
 
 parser.out
 parsetab.py
-REM_rule.txt
+REM_*.txt

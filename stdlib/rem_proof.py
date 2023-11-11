@@ -1,5 +1,5 @@
 
-
+raise NotImplementedError()
 from ..rem import RemTerm
 
 class RemProof(RemTerm):
