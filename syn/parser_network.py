@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Tuple, List, Dict
 from types import FunctionType
 
+
 from ply import lex, yacc
 from ply.lex import TOKEN
 
@@ -41,10 +42,10 @@ class PLYLexer:
         '''
         Construct a basic lexer.
         '''
-        self.__lexer = None
+        self.__lexer : lex.Lexer | None = None
 
-        # integrity : whether there are modifications after build
-        self.__integrity = False
+        # whether the lexer is modified after preparing build data
+        self.__modified : bool = True
 
         # the master of this lexer
         self.__master = master
@@ -54,45 +55,31 @@ class PLYLexer:
 
         # lexing rule stack
         self.reserved : dict[str, str] = {}
-        self.rule_stack : dict[str, str | function] = {}
+        self.normal_token_stack : dict[str, str | function] = {}
         self.literals : set[str] = set()
 
         self.__build_data : PLYLexer.BuildData | None = None
 
-    def copy(self) -> PLYLexer:
-        res = PLYLexer(self.master)
-        res.__integrity = self.__integrity
-        res.__master = self.__master
-        res.token_source = self.token_source.copy()
-        res.reserved = self.reserved.copy()
-        res.rule_stack = self.rule_stack.copy()
-
-        # this two information can be reused
-        res.__lexer = self.__lexer
-        res.__build_data = self.__build_data
-
-        return res
-
 
     @property
-    def lexer(self):
-        if self.__lexer is None:
-            raise REM_Parser_Building_Error(f"(lexer of '{self.master}'): Lexer not built.")
-        if not self.integrity:
-            raise REM_Parser_Building_Error(f"(lexer of '{self.master}'): Lack of integrity. Rebuild the lexer after modifying it.")
-        
+    def lexer(self) -> lex.Lexer:
+        if self.modified:
+            self.build()
+
+        assert self.__lexer is not None
+
         return self.__lexer
     
     @property
-    def integrity(self) -> bool:
-        return self.__integrity
+    def modified(self) -> bool:
+        return self.modified
     
     @property
     def unreserved_tokens(self) -> list[str]:
         '''
         return the tokens defined not as reserved (meta-reserved tokens like "ignore" and "COMMENT" are ruled out)
         '''
-        res = list(self.rule_stack.keys())
+        res = list(self.normal_token_stack.keys())
         for token in meta_reserved_token:
             res.remove(token)
         return res
@@ -103,11 +90,11 @@ class PLYLexer:
 
     @property
     def build_data(self) -> PLYLexer.BuildData:
-        if self.__build_data is None:
-            raise REM_Parser_Building_Error(f"(lexer of '{self.master}'): Lexer not built.")
-        if not self.integrity:
-            raise REM_Parser_Building_Error(f"(lexer of '{self.master}'): Lack of integrity. Rebuild the lexer after modifying it.")
-        
+        if self.modified:
+            self.prepare_build_data()
+
+        assert self.__build_data is not None
+
         return self.__build_data
     
     def __append_source(self, token : str, source : object):
@@ -132,8 +119,8 @@ class PLYLexer:
         REM_type_check(reserved_key, str, REM_Parser_Building_Error)
         REM_type_check(reserved_type, str, REM_Parser_Building_Error)
 
-        if reserved_type in self.rule_stack:
-            raise REM_Parser_Building_Error(f"(lexer of '{self.master}')(source '{source}'): The token '{reserved_type}' has been defined as the rule '{self.rule_stack[reserved_type]}'.")
+        if reserved_type in self.normal_token_stack:
+            raise REM_Parser_Building_Error(f"(lexer of '{self.master}')(source '{source}'): The token '{reserved_type}' has been defined as the rule '{self.normal_token_stack[reserved_type]}'.")
 
         # consistent keyword for tokens
         if reserved_type in self.reserved.values():
@@ -149,15 +136,15 @@ class PLYLexer:
 
         self.reserved[reserved_key] = reserved_type
 
-        self.__integrity = False
+        self.__modified = True
 
-    def add_rule(self, token : str, rule : str | function, source : object):
+    def add_normal_token(self, token : str, rule : str | function, source : object):
         REM_type_check(token, str, REM_Parser_Building_Error)
         REM_type_check(rule, (str, FunctionType), REM_Parser_Building_Error)
 
-        if token in self.rule_stack:
-            REM_other_check(self.rule_stack[token] == rule,
-                f"(lexer of '{self.master}')(source '{source}'): The token '{token}' has been defined as '{self.rule_stack[token]}', which is not consistent with the subsequent definition '{rule}'.", REM_Parser_Building_Error)
+        if token in self.normal_token_stack:
+            REM_other_check(self.normal_token_stack[token] == rule,
+                f"(lexer of '{self.master}')(source '{source}'): The token '{token}' has been defined as '{self.normal_token_stack[token]}', which is not consistent with the subsequent definition '{rule}'.", REM_Parser_Building_Error)
         
         # consistent rules for tokens
         if token in self.reserved.values():
@@ -169,9 +156,9 @@ class PLYLexer:
         if isinstance(rule, FunctionType):
             rule.__name__ = f"t_{token}"
 
-        self.rule_stack[token] = rule
+        self.normal_token_stack[token] = rule
 
-        self.__integrity = False
+        self.__modified = True
 
         
     def add_literals(self, literal : str | set[str], source : object):
@@ -186,26 +173,25 @@ class PLYLexer:
             for l in literal:
                 self.__append_source(l, source)
 
-        self.__integrity = False
+        self.__modified = True
 
-    def remove_rule(self, token : str):
-        REM_other_check(token in self.rule_stack, 
+    def remove_token(self, token : str):
+        '''
+        Removes the reserved, normal or literal token.
+        '''
+        if token in self.reserved.values():
+            del self.reserved[self.get_reserved_key(token)]
+        elif token in self.normal_token_stack:
+            del self.normal_token_stack[token]
+        elif token in self.literals:
+            self.literals -= {token}
+        else:
+            REM_other_check(False, 
                         f"(lexer of '{self.master}'): The token '{token}' is not defined and cannot be removed.",
                         REM_Parser_Building_Error)
-        del self.rule_stack[token]
+        
         del self.token_source[token]
-        self.__integrity = False
-
-    def update_rule(self, token : str, rule : str | function, source : object):
-        try:
-            self.add_rule(token, rule, source)
-
-        except REM_Parser_Building_Error:
-            if token in self.rule_stack:
-                self.remove_rule(token)
-
-            self.add_rule(token, rule, source)
-        self.__integrity = False
+        self.__modified = True
 
     
     def rule_t_ID(self, regex = regex_ID) -> function:
@@ -218,20 +204,21 @@ class PLYLexer:
         def t_ID(t):
             t.type = self.reserved.get(t.value, "ID")
             return t 
-        return t_ID           
+        return t_ID
 
-    def build(self):
-
+    def prepare_build_data(self):
         self.__build_data = self.BuildData()
         self.build_data.literals = list(self.literals)
 
-        for token in self.rule_stack:
-            setattr(self.build_data, f"t_{token}", self.rule_stack[token])
+        for token in self.normal_token_stack:
+            setattr(self.build_data, f"t_{token}", self.normal_token_stack[token])
 
         self.build_data.tokens = list(self.reserved.values()) + self.unreserved_tokens
 
+        self.__modified = False
+
+    def build(self):
         self.__lexer = lex.lex(self.build_data)
-        self.__integrity = True
 
     # interface
     def __call__(self, raw : str):
@@ -263,17 +250,17 @@ class PLYLexer:
                 other_existing_key = other.get_reserved_key(reserved_type)
                 REM_other_check(self_existing_key == other_existing_key, f"Fusion error. The reserved token '{reserved_type}' is defined inconsistently: keyword '{other_existing_key}' for lexer of '{other.master}' and keyword '{self_existing_key}' for lexer of '{self.master}'.", REM_Parser_Building_Error)
 
-        for token in other.rule_stack:
-            if token in self.rule_stack:
-                REM_other_check(other.rule_stack[token] == self.rule_stack[token], 
-                                f"Fusion error. The token '{token}' is defined inconsistently: rule '{other.rule_stack[token]}' in lexer of '{other.master}' and rule '{self.rule_stack[token]}' in lexer of '{self.master}'.",
+        for token in other.normal_token_stack:
+            if token in self.normal_token_stack:
+                REM_other_check(other.normal_token_stack[token] == self.normal_token_stack[token], 
+                                f"Fusion error. The token '{token}' is defined inconsistently: rule '{other.normal_token_stack[token]}' in lexer of '{other.master}' and rule '{self.normal_token_stack[token]}' in lexer of '{self.master}'.",
                                 REM_Parser_Building_Error)
 
 
         # fuse the definitions
         self.reserved.update(other.reserved)
 
-        self.rule_stack.update(other.rule_stack)
+        self.normal_token_stack.update(other.normal_token_stack)
 
         self.literals |= other.literals
 
@@ -285,7 +272,7 @@ class PLYLexer:
             else:
                 self.token_source[token] = other.token_source[token].copy()
 
-        self.__integrity = False
+        self.__modified = True
 
 
 
@@ -313,6 +300,8 @@ def type_match(p, types: Tuple[str, ...]) -> bool:
 
 
 class PLYParser:
+    # About precedence: items with higher precedence will be matched first.
+
     MAX_PRECEDENCE = 512
     
     class BuildData:
@@ -333,15 +322,26 @@ class PLYParser:
 
 
 
-    def __init__(self, master : object):
+    def __init__(self, plylexer : PLYLexer | None, start_symbol : str | None, master : object):
         '''
-        About precedence: items with higher precedence will be matched first.
+        - `start_symbol` : `str | None`, 
+            `str`: the start symbol,
+            `None`: dry run, only process the parser information
         '''
 
         self.__parser = None
 
-        # integrity : whether there are modifications after build
-        self.__integrity = False
+        # integrity : whether the parser is modified after preparing build data
+        self.__modified = True
+
+        # the lexer bound to this parser
+
+        REM_type_check(plylexer, (PLYLexer, type(None)), REM_Parser_Building_Error)
+        self.__plylexer = plylexer
+
+        REM_type_check(start_symbol, (str, type(None)), REM_Parser_Building_Error)
+        self.__start_symbol = start_symbol
+
 
         # the master of this parser
         self.__master = master
@@ -366,16 +366,29 @@ class PLYParser:
         self.__build_data : PLYParser.BuildData | None = None
 
     @property
+    def bound_plylexer(self) -> PLYLexer:
+        REM_other_check(self.__plylexer is not None,
+                        f"(parser of '{self.master}'): No lexer bound to this parser.",
+                        REM_Parser_Building_Error)
+        assert self.__plylexer is not None
+        return self.__plylexer
+
+    @property
     def parser(self):
-        if self.__parser is None:
-            raise REM_Parser_Building_Error(f"(parser of '{self.master}'): Parser not built.")
-        if not self.integrity:
-            raise REM_Parser_Building_Error(f"(parser of '{self.master}'): Lack of integrity. Rebuild the parser after modifying it.")
+        REM_other_check(self.__start_symbol is not None,
+                        f"(parser of '{self.master}'): The start symbol of this parser is 'None'.",
+                        REM_Parser_Building_Error)
+        if self.modified:
+            self.build()
+
+        assert self.__parser is not None
         return self.__parser
     
     @property
-    def integrity(self) -> bool:
-        return self.__integrity
+    def modified(self) -> bool:
+        if self.__plylexer is None:
+            return self.__modified
+        return self.__plylexer.modified & self.__modified
     
     @property
     def master(self) -> object:
@@ -383,17 +396,23 @@ class PLYParser:
 
     @property
     def build_data(self) -> PLYParser.BuildData:
-        if self.__build_data is None:
-            raise REM_Parser_Building_Error(f"(parser of '{self.master}'): Parser not built.")
-        if not self.integrity:
-            raise REM_Parser_Building_Error(f"(parser of '{self.master}'): Lack of integrity. Rebuild the parser after modifying it.")
+        if self.modified:
+            self.prepare_build_data()
 
+        assert self.__build_data is not None
         return self.__build_data
     
+    @property
+    def start_symbol(self) -> str | None:
+        return self.__start_symbol
+    
+    def set_start_symbol(self, start_symbol : str | None):
+        self.__start_symbol = start_symbol
+        self.__modified = True
     
     def set_precedence(self, symbol : str, prec : int, assoc : str, source : object):
         '''
-        Set the precedence of the symbol. #TODO #8
+        Set the precedence of the symbol.
         '''
         REM_type_check(symbol, str, REM_Parser_Building_Error)
         REM_type_check(prec, int, REM_Parser_Building_Error)
@@ -429,7 +448,7 @@ class PLYParser:
         # update the precedence setting
         self.symbol_prec[symbol] = (assoc, prec)
 
-        self.__integrity = False
+        self.__modified = True
         
 
 
@@ -472,30 +491,10 @@ class PLYParser:
             for term in rule:
                 self.add_rule(term, source)
             
-        self.__integrity = False
+        self.__modified = True
 
             
-
-
-    def build(self, plylexer : PLYLexer, start_symbol : str | None):
-        '''
-        - `plylexer` : `PLYLexer`, a built `PLYLexer` instance. `PLYParser` instance will keep a copy of it.
-        - `start_symbol` : `str | None`, 
-            `str`: the start symbol,
-            `None`: dry run, only process the parser information
-        '''
-
-        REM_type_check(plylexer, PLYLexer)
-
-        # get a copy
-        plylexer = plylexer.copy()
-
-
-        self.__build_data = PLYParser.BuildData()
-
-
-        # set the token
-        self.build_data.tokens = plylexer.build_data.tokens
+    def prepare_build_data(self):
 
         # prepare precedence tab (intermediate representation)
         prec_tab : list[Tuple[str | None, list[str]]] = [(None, [])] * PLYParser.MAX_PRECEDENCE
@@ -517,19 +516,30 @@ class PLYParser:
         for symbol in self.rule_stack:
             setattr(self.build_data, f"p_{symbol}", self.rule_stack[symbol])
 
+    def build(self):
+
+        self.__build_data = PLYParser.BuildData()
+
+
+        REM_other_check(self.__start_symbol is not None,
+                        f"(parser of '{self.master}'): The start symbol is set to 'None'.",
+                        REM_Parser_Building_Error)
+        assert self.__start_symbol is not None
+        
+
+        # set the token
+        self.build_data.tokens = self.bound_plylexer.build_data.tokens
+
         # set the start symbol and build
-        if start_symbol is not None:
-            self.build_data.start = start_symbol
-            self.__parser = yacc.yacc(module=self.build_data)
+        self.build_data.start = self.__start_symbol
 
-        # should not be modified after building of parser
-        self.__plylexer = plylexer
+        self.__parser = yacc.yacc(module=self.build_data)
 
-        self.__integrity = True
+        self.__modified = False
 
     # interface
     def __call__(self, raw : str):
-        return self.parser.parse(raw, lexer = self.__plylexer.lexer)
+        return self.parser.parse(raw, lexer = self.bound_plylexer.lexer)
     
     # fusion
     def fuse_append(self, other : PLYParser) -> None:
@@ -539,7 +549,7 @@ class PLYParser:
         Strict equivalence checking is applied on the token definitions to rule out possible ambiguity.
         '''
 
-        REM_type_check(other, PLYParser)
+        REM_type_check(other, PLYParser, REM_Parser_Building_Error)
 
         # consistent precedence associativity
         for prec in other.prec_assoc:
@@ -581,6 +591,128 @@ class PLYParser:
             else:
                 self.rule_source[symbol] = other.rule_source[symbol].copy()
 
-        self.__integrity = False
+        self.__modified = True
 
+
+from ..network import NetworkNode
+
+class ParserNode(NetworkNode):
+
+    def __init__(self, start_symbol : str | None, master : object):
+        '''
+        If `start_symbol` is set to `None`, then the ParserNode is a rule set and cannot be compiled.
+        '''
+
+        # create an isolated parser node
+        super().__init__(())
+
+        self.__super_nodes  : Tuple[ParserNode, ...]
+        self.__sub_nodes    : Tuple[ParserNode, ...]
+        self.__upstream_nodes : Tuple[ParserNode, ...]
+
+
+        self.__master = master
+
+        REM_type_check(start_symbol, (str, type(None)), REM_Parser_Building_Error)
+        self.__start_symbol = start_symbol
+
+        self.__node_plylexer = PLYLexer(master)
+        self.__node_plyparser = PLYParser(None, None, master)
+
+        self.__plylexer : PLYLexer | None = None
+        self.__plyparser : PLYParser | None = None
+
+        self.__modified = True
+
+    @property
+    def super_nodes(self) -> Tuple[ParserNode, ...]:
+        return self.__super_nodes
+    
+    @property
+    def sub_nodes(self) -> Tuple[ParserNode, ...]:
+        return self.__sub_nodes
+
+    @property
+    def upstream_nodes(self) -> Tuple[ParserNode, ...]:
+        return self.__upstream_nodes
+
+    @property
+    def downstream_nodes(self) -> Tuple[ParserNode, ...]:
+        return self.__calc_downstream_nodes()   # type: ignore
+
+    def set_super_nodes(self, super_nodes: Tuple[NetworkNode, ...]):
+        super().set_super_nodes(super_nodes)
+        self.__modified = True
+
+    @property
+    def modified(self) -> bool:
+        for term in self.downstream_nodes:
+            if term.modified:
+                return True
+            
+        return self.__node_plylexer.modified or self.__node_plyparser.modified or self.__modified
+    
+    @property
+    def node_plylexer(self) -> PLYLexer:
+        return self.__node_plylexer
+    
+    @property
+    def node_plyparser(self) -> PLYParser:
+        return self.__node_plyparser
+    
+    @property
+    def plylexer(self) -> PLYLexer:
+        if self.modified:
+            self.build()
+
+        assert self.__plylexer is not None
+        return self.__plylexer
+
+    @property
+    def plyparser(self) -> PLYParser:
+        if self.modified:
+            self.build()
+        
+        assert self.__plyparser is not None
+        return self.__plyparser
+
+    def build(self, traveled : Tuple[ParserNode, ...] = ()) -> None:
+
+        # change modification tag at the beginning to avoid the spread of modified node detection due to loops.
+
+        self.__modified = False
+
+
+        self.__plylexer = PLYLexer(self.__master)
+        self.__plyparser = PLYParser(self.__plylexer, self.__start_symbol, self.__master)
+
+
+        if self not in traveled:
+            for node in self.sub_nodes:
+
+                if node.modified:
+                    node.build(traveled + (self,))
+
+                assert node.__plylexer is not None
+                assert node.__plyparser is not None
+
+                self.__plylexer.fuse_append(node.__plylexer)
+                self.__plyparser.fuse_append(node.__plyparser)
+
+                # add the bridge generation rule between parser nodes
+                # for those with start symbol specified
+                if self.__start_symbol and node.__start_symbol is not None:
+
+                    # the bridge function
+                    def bridge_rule(p):
+                        p[0] = p[1]
+
+                    bridge_rule.__doc__ = f"{self.__start_symbol} : {node.__start_symbol}"
+
+                    self.__plyparser.add_rule(bridge_rule, self.__master)
+
+
+
+        self.__plylexer.fuse_append(self.__node_plylexer)
+        self.__plyparser.fuse_append(self.__node_plyparser)
 

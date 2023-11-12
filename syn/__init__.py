@@ -1,2 +1,2 @@
 from .syntax_rules import *
-from .syntax_parsing import *
+from .parser_network import *

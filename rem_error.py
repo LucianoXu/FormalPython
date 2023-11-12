@@ -6,12 +6,21 @@ from typing import Type, Tuple
 class REM_Error(Exception):
     pass
 
+# the errors that happen when constructin the formal system
+class REM_META_Error(REM_Error):
+    pass
+
 # the error during parser construction
-class REM_Parser_Building_Error(REM_Error):
+class REM_Parser_Building_Error(REM_META_Error):
+    pass
+
+
+# the errors that happen during term construction with formal systems
+class REM_CONSTRUCTION_Error(REM_Error):
     pass
 
 # the error of wrong syntax when parsing
-class REM_Syntax_Error(REM_Error):
+class REM_Syntax_Error(REM_CONSTRUCTION_Error):
     pass
 
 def REM_type_check(obj : object, target_type : Type | Tuple[Type, ...], error_type : Type[REM_Error] = REM_Error) -> None:
