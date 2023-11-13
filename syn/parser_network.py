@@ -63,7 +63,7 @@ class PLYLexer:
 
     @property
     def lexer(self) -> lex.Lexer:
-        if self.modified:
+        if self.modified or self.__lexer is None:
             self.build()
 
         assert self.__lexer is not None
@@ -72,7 +72,7 @@ class PLYLexer:
     
     @property
     def modified(self) -> bool:
-        return self.modified
+        return self.__modified
     
     @property
     def unreserved_tokens(self) -> list[str]:
@@ -80,8 +80,9 @@ class PLYLexer:
         return the tokens defined not as reserved (meta-reserved tokens like "ignore" and "COMMENT" are ruled out)
         '''
         res = list(self.normal_token_stack.keys())
-        for token in meta_reserved_token:
-            res.remove(token)
+        for token in res:
+            if token in meta_reserved_token:
+                res.remove(token)
         return res
 
     @property
@@ -109,49 +110,48 @@ class PLYLexer:
         '''
         return list(self.reserved.keys())[list(self.reserved.values()).index(reserved_token)]
 
-    def add_reserved(self, reserved_type : str, reserved_key : str, source : object):
+    def add_reserved(self, reserved_type : str, reserved_key : str):
         '''
         Reserved keywords will be detected before `t_ID`.
         - `reserved_type` : The type of the reserved token.
         - `reserved_key` : The reserved keyword.
-        - `source` : the source of this reserved word.
         '''
         REM_type_check(reserved_key, str, REM_Parser_Building_Error)
         REM_type_check(reserved_type, str, REM_Parser_Building_Error)
 
         if reserved_type in self.normal_token_stack:
-            raise REM_Parser_Building_Error(f"(lexer of '{self.master}')(source '{source}'): The token '{reserved_type}' has been defined as the rule '{self.normal_token_stack[reserved_type]}'.")
+            raise REM_Parser_Building_Error(f"(lexer of '{self.master}'): The token '{reserved_type}' has been defined as the rule '{self.normal_token_stack[reserved_type]}'.")
 
         # consistent keyword for tokens
         if reserved_type in self.reserved.values():
             existing_key = self.get_reserved_key(reserved_type)
-            REM_other_check(existing_key == reserved_key, f"(lexer of '{self.master}')(source '{source}'): Token '{reserved_type}' bas been defined as '{existing_key}', which is not consistent with the subsequent definition '{reserved_key}'.", REM_Parser_Building_Error)
+            REM_other_check(existing_key == reserved_key, f"(lexer of '{self.master}'): Token '{reserved_type}' bas been defined as '{existing_key}', which is not consistent with the subsequent definition '{reserved_key}'.", REM_Parser_Building_Error)
 
         # unique token for keywords
         elif reserved_key in self.reserved:
-            raise REM_Parser_Building_Error(f"(lexer of '{self.master}')(source '{source}'): The reserved word '{reserved_key}' has been defined for token '{self.reserved[reserved_key]}'.")
+            raise REM_Parser_Building_Error(f"(lexer of '{self.master}'): The reserved word '{reserved_key}' has been defined for token '{self.reserved[reserved_key]}'.")
         
         # record the source
-        self.__append_source(reserved_type, source)      
+        self.__append_source(reserved_type, self.master)      
 
         self.reserved[reserved_key] = reserved_type
 
         self.__modified = True
 
-    def add_normal_token(self, token : str, rule : str | function, source : object):
+    def add_normal_token(self, token : str, rule : str | function):
         REM_type_check(token, str, REM_Parser_Building_Error)
         REM_type_check(rule, (str, FunctionType), REM_Parser_Building_Error)
 
         if token in self.normal_token_stack:
             REM_other_check(self.normal_token_stack[token] == rule,
-                f"(lexer of '{self.master}')(source '{source}'): The token '{token}' has been defined as '{self.normal_token_stack[token]}', which is not consistent with the subsequent definition '{rule}'.", REM_Parser_Building_Error)
+                f"(lexer of '{self.master}'): The token '{token}' has been defined as '{self.normal_token_stack[token]}', which is not consistent with the subsequent definition '{rule}'.", REM_Parser_Building_Error)
         
         # consistent rules for tokens
         if token in self.reserved.values():
-            raise REM_Parser_Building_Error(f"(lexer of '{self.master}')(source '{source}'): The token '{token}' has been defined as a reserved word for '{self.get_reserved_key(token)}'.")
+            raise REM_Parser_Building_Error(f"(lexer of '{self.master}'): The token '{token}' has been defined as a reserved word for '{self.get_reserved_key(token)}'.")
             
         # record the source
-        self.__append_source(token, source)
+        self.__append_source(token, self.master)
 
         if isinstance(rule, FunctionType):
             rule.__name__ = f"t_{token}"
@@ -161,17 +161,17 @@ class PLYLexer:
         self.__modified = True
 
         
-    def add_literals(self, literal : str | set[str], source : object):
+    def add_literals(self, literal : str | set[str]):
         REM_type_check(literal, (str, set), REM_Parser_Building_Error)
         
         if isinstance(literal, str):
             self.literals.add(literal)
-            self.__append_source(literal, source)
+            self.__append_source(literal, self.master)
 
         elif isinstance(literal, set):
             self.literals |= literal
             for l in literal:
-                self.__append_source(l, source)
+                self.__append_source(l, self.master)
 
         self.__modified = True
 
@@ -194,7 +194,7 @@ class PLYLexer:
         self.__modified = True
 
     
-    def rule_t_ID(self, regex = regex_ID) -> function:
+    def token_t_ID(self, regex = regex_ID) -> function:
         '''
         Get the `t_ID` rule for this lexer.
         Notice: the return funtions are not equal to each other.
@@ -208,17 +208,18 @@ class PLYLexer:
 
     def prepare_build_data(self):
         self.__build_data = self.BuildData()
-        self.build_data.literals = list(self.literals)
+        self.__build_data.literals = list(self.literals)
 
         for token in self.normal_token_stack:
-            setattr(self.build_data, f"t_{token}", self.normal_token_stack[token])
+            setattr(self.__build_data, f"t_{token}", self.normal_token_stack[token])
 
-        self.build_data.tokens = list(self.reserved.values()) + self.unreserved_tokens
+        self.__build_data.tokens = list(self.reserved.values()) + self.unreserved_tokens
 
         self.__modified = False
 
     def build(self):
         self.__lexer = lex.lex(self.build_data)
+
 
     # interface
     def __call__(self, raw : str):
@@ -361,7 +362,7 @@ class PLYParser:
 
 
         # the parsing rule stack. A dictionary of (item_name, item_func)
-        self.rule_stack : dict[str, FunctionType] = {}
+        self.rule_stack : List[FunctionType] = []
         
         self.__build_data : PLYParser.BuildData | None = None
 
@@ -388,7 +389,7 @@ class PLYParser:
     def modified(self) -> bool:
         if self.__plylexer is None:
             return self.__modified
-        return self.__plylexer.modified & self.__modified
+        return self.__plylexer.modified or self.__modified
     
     @property
     def master(self) -> object:
@@ -410,7 +411,7 @@ class PLYParser:
         self.__start_symbol = start_symbol
         self.__modified = True
     
-    def set_precedence(self, symbol : str, prec : int, assoc : str, source : object):
+    def set_precedence(self, symbol : str, prec : int, assoc : str):
         '''
         Set the precedence of the symbol.
         '''
@@ -420,40 +421,42 @@ class PLYParser:
 
         # valid precedence
         REM_other_check(0 <= prec < PLYParser.MAX_PRECEDENCE, 
-                        f"(parser of '{self.master}')(source '{source}'): Rem detected invalid precedence number {prec}. It should be between 0 and {PLYParser.MAX_PRECEDENCE-1}.",
+                        f"(parser of '{self.master}'): Rem detected invalid precedence number {prec}. It should be between 0 and {PLYParser.MAX_PRECEDENCE-1}.",
                         REM_Parser_Building_Error)
         
         # valid associativity
         REM_other_check(assoc in ("left", "right", "nonassoc"), 
-                        f"(parser of '{self.master}')(source '{source}'): Rem detected invalid associativity '{assoc}'. It should be 'left', 'right' or 'nonassoc'.",
+                        f"(parser of '{self.master}'): Rem detected invalid associativity '{assoc}'. It should be 'left', 'right' or 'nonassoc'.",
                         REM_Parser_Building_Error)
         
         # consistent associativity
-        REM_other_check(self.prec_assoc[prec] == assoc, 
-                        f"(parser of '{self.master}')(source '{source}'): The precedence {prec} has been defined with '{self.prec_assoc}' associativity, which is not consistent with the subsequent specification '{assoc}'.",
+        if prec in self.prec_assoc:
+            REM_other_check(self.prec_assoc[prec] == assoc, 
+                        f"(parser of '{self.master}'): The precedence {prec} has been defined with '{self.prec_assoc}' associativity, which is not consistent with the subsequent specification '{assoc}'.",
                         REM_Parser_Building_Error)
         
         # consistent precedence for the symbol
         if symbol in self.symbol_prec:
             REM_other_check(self.symbol_prec[symbol][1] == prec, 
-                            f"(parser of '{self.master}')(source '{source}'): The symbol '{symbol}' has been defined with precedence '{self.symbol_prec[symbol][1]}', which is inconsistent with the subsequent specification '{prec}'.",
+                            f"(parser of '{self.master}'): The symbol '{symbol}' has been defined with precedence '{self.symbol_prec[symbol][1]}', which is inconsistent with the subsequent specification '{prec}'.",
                             REM_Parser_Building_Error)
         
         # record the source
         if symbol in self.prec_source:
-            self.prec_source[symbol].append(source)
+            self.prec_source[symbol].append(self.master)
         else:
-            self.prec_source[symbol] = [source]
+            self.prec_source[symbol] = [self.master]
         
         # update the precedence setting
         self.symbol_prec[symbol] = (assoc, prec)
+        self.prec_assoc[prec] = assoc
 
         self.__modified = True
         
 
 
 
-    def add_rule(self, rule : function | List[function], source : object):
+    def add_rule(self, rule : function | List[function]):
         '''
         Add a parsing rule to this `PLYParser` instance. The symbol will be automatically extracted from the documentation of the rule function.
         '''
@@ -463,38 +466,33 @@ class PLYParser:
         if isinstance(rule, FunctionType):
 
             REM_other_check(rule.__doc__ is not None,
-                            f"(parser of '{self.master}')(source '{source}'): Invalid rule function '{rule}'.",
+                            f"(parser of '{self.master}'): Invalid rule function '{rule}'.",
                             REM_Parser_Building_Error)
             
             # extract the symbol automatically
             doc = rule.__doc__
             pos = doc.index(":")
-            symbol = doc[:pos].replace("\n","").replace(" ","").replace("\t", "")
-
-            # consistent rule check
-            if symbol in self.rule_stack:
-                REM_other_check(self.rule_stack[symbol] == rule,
-                                f"(parser of '{self.master}')(source '{source}'): The symbol '{symbol}' has the rule definition '{self.rule_stack[symbol]}', which is inconsistent with the subsequent definition '{rule}'.",
-                                REM_Parser_Building_Error)
-                
+            symbol = doc[:pos].replace("\n","").replace(" ","").replace("\t", "")                
             
             # record the source
             if symbol in self.rule_source:
-                self.rule_source[symbol].append(source)
+                self.rule_source[symbol].append(self.master)
             else:
-                self.rule_source[symbol] = [source]
+                self.rule_source[symbol] = [self.master]
                 
-            self.rule_stack[symbol] = rule
+            self.rule_stack.append(rule)
 
         elif isinstance(rule, list):
 
             for term in rule:
-                self.add_rule(term, source)
+                self.add_rule(term)
             
         self.__modified = True
 
             
     def prepare_build_data(self):
+
+        self.__build_data = PLYParser.BuildData()
 
         # prepare precedence tab (intermediate representation)
         prec_tab : list[Tuple[str | None, list[str]]] = [(None, [])] * PLYParser.MAX_PRECEDENCE
@@ -511,14 +509,12 @@ class PLYParser:
             if assoc is None:
                 assoc = 'right'
             precedence.append((assoc,) + tuple(opts))
-        self.build_data.precedence = tuple(precedence)
+        self.__build_data.precedence = tuple(precedence)
 
-        for symbol in self.rule_stack:
-            setattr(self.build_data, f"p_{symbol}", self.rule_stack[symbol])
+        for i in range(len(self.rule_stack)):
+            setattr(self.__build_data, f"p_rule{i}", self.rule_stack[i])
 
     def build(self):
-
-        self.__build_data = PLYParser.BuildData()
 
 
         REM_other_check(self.__start_symbol is not None,
@@ -526,14 +522,16 @@ class PLYParser:
                         REM_Parser_Building_Error)
         assert self.__start_symbol is not None
         
+        self.prepare_build_data()
+        assert self.__build_data is not None
 
         # set the token
-        self.build_data.tokens = self.bound_plylexer.build_data.tokens
+        self.__build_data.tokens = self.bound_plylexer.build_data.tokens
 
         # set the start symbol and build
-        self.build_data.start = self.__start_symbol
+        self.__build_data.start = self.__start_symbol
 
-        self.__parser = yacc.yacc(module=self.build_data)
+        self.__parser = yacc.yacc(module=self.__build_data)
 
         self.__modified = False
 
@@ -565,19 +563,11 @@ class PLYParser:
                                 f"Fusion error. Inconsistent precedence for symbol '{symbol}': '{other.symbol_prec[symbol][1]}' in parser of '{other.master}' and '{self.symbol_prec[symbol][1]}' in parser of '{self.master}'.",
                                 REM_Parser_Building_Error)
                 
-        # consistent rules
-        for symbol in other.rule_stack:
-            if symbol in self.rule_stack:
-                REM_other_check(other.rule_stack[symbol] == self.rule_stack[symbol], 
-                                f"Fusion error. The symbol '{symbol}' is defined inconsistently: rule '{other.rule_stack[symbol]}' in parser of '{other.master}' and rule '{self.rule_stack[symbol]}' in parser of '{self.master}'.",
-                                REM_Parser_Building_Error)
-
-
 
         # fuse the definitions
         self.symbol_prec.update(other.symbol_prec)
         self.prec_assoc.update(other.prec_assoc)
-        self.rule_stack.update(other.rule_stack)
+        self.rule_stack += other.rule_stack
 
         # fuse the source information
         for symbol in other.prec_source:
@@ -596,7 +586,7 @@ class PLYParser:
 
 from ..network import NetworkNode
 
-class ParserNode(NetworkNode):
+class ParserNode(NetworkNode["ParserNode"]):
 
     def __init__(self, start_symbol : str | None, master : object):
         '''
@@ -606,15 +596,10 @@ class ParserNode(NetworkNode):
         # create an isolated parser node
         super().__init__(())
 
-        self.__super_nodes  : Tuple[ParserNode, ...]
-        self.__sub_nodes    : Tuple[ParserNode, ...]
-        self.__upstream_nodes : Tuple[ParserNode, ...]
-
 
         self.__master = master
 
-        REM_type_check(start_symbol, (str, type(None)), REM_Parser_Building_Error)
-        self.__start_symbol = start_symbol
+        self.set_start_symbol(start_symbol)
 
         self.__node_plylexer = PLYLexer(master)
         self.__node_plyparser = PLYParser(None, None, master)
@@ -624,33 +609,19 @@ class ParserNode(NetworkNode):
 
         self.__modified = True
 
-    @property
-    def super_nodes(self) -> Tuple[ParserNode, ...]:
-        return self.__super_nodes
-    
-    @property
-    def sub_nodes(self) -> Tuple[ParserNode, ...]:
-        return self.__sub_nodes
 
-    @property
-    def upstream_nodes(self) -> Tuple[ParserNode, ...]:
-        return self.__upstream_nodes
-
-    @property
-    def downstream_nodes(self) -> Tuple[ParserNode, ...]:
-        return self.__calc_downstream_nodes()   # type: ignore
-
-    def set_super_nodes(self, super_nodes: Tuple[NetworkNode, ...]):
-        super().set_super_nodes(super_nodes)
+    def set_start_symbol(self, start_symbol : str | None):
+        REM_type_check(start_symbol, (str, type(None)), REM_Parser_Building_Error)
+        self.__start_symbol = start_symbol
         self.__modified = True
 
     @property
     def modified(self) -> bool:
-        for term in self.downstream_nodes:
-            if term.modified:
+        for node in self.downstream_nodes:
+            if node.__node_plylexer.modified or node.__node_plyparser.modified or node.__modified:
                 return True
             
-        return self.__node_plylexer.modified or self.__node_plyparser.modified or self.__modified
+        return False
     
     @property
     def node_plylexer(self) -> PLYLexer:
@@ -709,10 +680,74 @@ class ParserNode(NetworkNode):
 
                     bridge_rule.__doc__ = f"{self.__start_symbol} : {node.__start_symbol}"
 
-                    self.__plyparser.add_rule(bridge_rule, self.__master)
+                    self.__plyparser.add_rule(bridge_rule)
 
 
 
         self.__plylexer.fuse_append(self.__node_plylexer)
         self.__plyparser.fuse_append(self.__node_plyparser)
+
+    def get_doc(self) -> str:
+        res = ""
+        for rule in self.plyparser.rule_stack:
+            res += f"\n{rule.__doc__}\n"
+
+        return res
+
+
+
+
+class ParserHost:
+    def __init__(self, symbol : str | None):
+        self._parser_node = ParserNode(symbol, self)
+
+
+    @property
+    def parser_node(self) -> ParserNode:
+        return self._parser_node
+    
+    @property
+    def lexer(self) -> PLYLexer:
+        return self.parser_node.plylexer
+    
+    @property
+    def parser(self) -> PLYParser:
+        '''
+        The integrated parser.
+        This `PLYParser` property is callable (as a parser).
+        '''
+        return self.parser_node.plyparser
+    
+    # for node lexer
+
+    def add_reserved(self, reserved_type : str, reserved_key : str):
+        self._parser_node.node_plylexer.add_reserved(reserved_type, reserved_key)
+
+    def add_normal_token(self, token : str, rule : str | function):
+        self._parser_node.node_plylexer.add_normal_token(token, rule)
+
+    def add_literals(self, literal : str | set[str]):
+        self._parser_node.node_plylexer.add_literals(literal)
+
+    def remove_token(self, token : str):
+        self._parser_node.node_plylexer.remove_token(token)
+
+    def token_t_ID(self, regex = regex_ID):
+        self._parser_node.node_plylexer.token_t_ID(regex)
+
+    # for node parser
+
+    def set_precedence(self, symbol : str, prec : int, assoc : str):
+        self._parser_node.node_plyparser.set_precedence(symbol, prec, assoc)
+
+    def add_rule(self, rule : function | List[function]):
+        self._parser_node.node_plyparser.add_rule(rule)
+
+    # for ParserNode
+    
+    def set_start_symbol(self, start_symbol : str | None):
+        self._parser_node.set_start_symbol(start_symbol)
+
+    def get_parser_doc(self) -> str:
+        return self._parser_node.get_doc()
 

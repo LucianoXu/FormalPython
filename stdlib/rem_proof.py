@@ -13,35 +13,7 @@ class ProofSort(RemSort):
     pass
 
 
-class ProofFun(RemFun):
-    def __init__(self, name : str, para_sorts : Tuple[RemSort], domain_sort : ProofSort, symbol : str | None = None):
-
-        if not isinstance(domain_sort, ProofSort):
-            raise REM_META_Error(f"({name}): The domain sort '{domain_sort}' is not an instance of class ProofSort.")
-        
-        super().__init__(name, para_sorts, domain_sort, symbol)
-
-
-    def __call__(self, *paras : RemTerm, **kwparas) -> RemTerm:
-        '''
-        Create a `RemTerm` instance with the parameters.
-        '''
-        if len(paras) != self.arity:
-            raise REM_CONSTRUCTION_Error(f"({self.name}): Invalid argument number. The function arity is {self.arity} but {len(paras)} arguments are provided.")
-        
-        for i in range(self.arity):                
-            self.type_check(paras[i], self.para_sorts[i], self.__para_doc[i])
-            
-        self.extra_check(*paras, **kwparas)
-
-        term = ProofTerm(self, *paras, **kwparas)
-
-        self.modify(term, *paras, **kwparas)
-
-        return term
-
-
-class ProofTerm(RemTerm):    
+class ProofTerm(RemTerm[ProofSort, "ProofTerm"]):    
     def premises(self) -> str:
         raise NotImplementedError()
     
@@ -67,3 +39,8 @@ class ProofTerm(RemTerm):
     
     def __str__(self) -> str:
         return self.conclusion()
+    
+
+class ProofFun(RemFun[ProofSort, ProofTerm]):
+    sort_type = ProofSort
+    term_type = ProofTerm
