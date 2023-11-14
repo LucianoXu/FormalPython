@@ -14,33 +14,8 @@ class ProofSort(RemSort):
 
 
 class ProofTerm(RemTerm[ProofSort, "ProofTerm"]):    
-    def premises(self) -> str:
-        raise NotImplementedError()
-    
-    def conclusion(self) -> str:
-        raise NotImplementedError()
-    
-    def full_proof(self) -> str:
-        space_len = len(self.sort.name) + 3
-
-        # indent, premise
-        res = " " * space_len + self.premises()
-        if res[-1] == "\n":
-            res = res[:-1]
-        res = res.replace("\n", "\n" + " " * space_len)
-        res += "\n"
-
-        # line
-        res += f"({self.sort.name}) " + "-"*40 + "\n" 
-
-        # indent conclusion
-        res += " " * space_len + self.conclusion() 
-        return res
-    
-    def __str__(self) -> str:
-        return self.conclusion()
+    pass
     
 
 class ProofFun(RemFun[ProofSort, ProofTerm]):
-    sort_type = ProofSort
     term_type = ProofTerm

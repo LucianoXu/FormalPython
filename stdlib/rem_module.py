@@ -33,6 +33,5 @@ class ModuleTerm(RemTerm[ModuleSort, "ModuleTerm"], syn.ParserHost):
         return super().__delattr__(__name)
     
 class ModuleFun(RemFun[ModuleSort, ModuleTerm]):
-    sort_type = ModuleSort
     term_type = ModuleTerm
 

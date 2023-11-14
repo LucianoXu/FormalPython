@@ -13,6 +13,8 @@ from .syntax_rules import *
 
 from ..rem_error import REM_Parser_Building_Error, REM_type_check, REM_other_check
 
+import os
+
 
 ###################################
 # Lexer
@@ -531,7 +533,13 @@ class PLYParser:
         # set the start symbol and build
         self.__build_data.start = self.__start_symbol
 
-        self.__parser = yacc.yacc(module=self.__build_data)
+        #########################
+        # BUILD PARSER
+
+        self.__parser = yacc.yacc(
+            module=self.__build_data, 
+            check_recursion=False, 
+            write_tables=False )
 
         self.__modified = False
 
