@@ -3,7 +3,28 @@ from __future__ import annotations
 
 from typing import Tuple, List, Generic, TypeVar
 
+from graphviz import Digraph
+
 T = TypeVar("T", bound = "NetworkNode[T]")
+
+class Network(Generic[T]):
+    def __init__(self, nodes : set[NetworkNode[T]]):
+        self._nodes = nodes
+
+    def draw(self, output : None | str = None) -> Digraph:
+        dot = Digraph()
+
+        for node in self._nodes:
+            node.vlayout(dot)
+            for snode in node.super_nodes:
+                if snode in self._nodes:
+                    node.elayout(snode, dot)
+
+        if output:
+            dot.render(output)
+            
+        return dot
+
 
 class NetworkNode(Generic[T]):
     '''
@@ -19,6 +40,28 @@ class NetworkNode(Generic[T]):
         
         self.set_super_nodes(super_nodes)
 
+    def __hash__(self) -> int:
+        return id(self)
+    
+    def vlayout(self, dot : Digraph):
+        '''
+        layout of the node in Graphviz.
+        Not including edges.
+        '''
+
+        dot.node(str(self.__hash__()), str(self.__hash__()),
+            shape = "box", style="filled",
+            fontname = "Consolas",
+            labeljust="l")
+
+    def elayout(self, super_node : NetworkNode[T], dot : Digraph):
+        '''
+        One layout function for edges.
+        '''
+        dot.edge(str(hash(self)), str(hash(super_node)))
+
+
+    
     @property
     def super_nodes(self) -> Tuple[T, ...]:
         return self._super_nodes

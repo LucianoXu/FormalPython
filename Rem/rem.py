@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Type, Tuple, Any, TypeVar, Sequence, List, Generic, Callable, Dict
 
+from graphviz import Digraph
+
 from types import FunctionType
 
 import inspect
@@ -128,6 +130,19 @@ class RemSort(NetworkNode, syn.ParserHost, RemNamed):
         # The extra check on term attributes. Reassign to redefine.
         self.attr_extra_check : Callable[[RemTerm], None] | None = None
         
+    #######################################################
+    # Network Visualization
+    def vlayout(self, dot : Digraph):
+        '''
+        layout of the node in Graphviz.
+        Not including edges.
+        '''
+
+        dot.node(str(hash(self)), str(self.name),
+            shape = "box", style="filled",
+            fontname = "Consolas",
+            labeljust="l")
+
     #######################################################
     # sort check - checking for valid terms of this sort
 

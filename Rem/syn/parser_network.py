@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Tuple, List, Dict
 from types import FunctionType
+from graphviz import Digraph
 
 
 from ply import lex, yacc
@@ -616,6 +617,14 @@ class ParserNode(NetworkNode["ParserNode"]):
         self.__plyparser : PLYParser | None = None
 
         self.__modified = True
+
+    def vlayout(self, dot: Digraph):
+
+        dot.node(str(hash(self)), f"Parser: {self.__master}",
+            shape = "box", style="filled",
+            fontname = "Consolas",
+            labeljust="l")
+
 
 
     def set_start_symbol(self, start_symbol : str | None):
