@@ -553,7 +553,6 @@ class PLYParser:
         '''
         Fuse the two parser definitions.
         It will update the definitions of `other` on `self`.
-        Strict equivalence checking is applied on the token definitions to rule out possible ambiguity.
         '''
 
         REM_type_check(other, PLYParser, REM_Parser_Building_Error)
@@ -576,7 +575,11 @@ class PLYParser:
         # fuse the definitions
         self.symbol_prec.update(other.symbol_prec)
         self.prec_assoc.update(other.prec_assoc)
-        self.rule_stack += other.rule_stack
+
+        # rules are kept unique
+        for rule in other.rule_stack:
+            if rule not in self.rule_stack:
+                self.rule_stack.append(rule)
 
         # fuse the source information
         for symbol in other.prec_source:
@@ -603,7 +606,7 @@ class ParserNode(NetworkNode["ParserNode"]):
         '''
 
         # create an isolated parser node
-        super().__init__(())
+        super().__init__(set())
 
 
         self.__master = master
@@ -618,13 +621,8 @@ class ParserNode(NetworkNode["ParserNode"]):
 
         self.__modified = True
 
-    def vlayout(self, dot: Digraph):
-
-        dot.node(str(hash(self)), f"Parser: {self.__master}",
-            shape = "box", style="filled",
-            fontname = "Consolas",
-            labeljust="l")
-
+    def __str__(self) -> str:
+        return f"Parser: {self.__master}"
 
 
     def set_start_symbol(self, start_symbol : str | None):
@@ -667,6 +665,8 @@ class ParserNode(NetworkNode["ParserNode"]):
     def build(self, traveled : Tuple[ParserNode, ...] = ()) -> None:
 
         # change modification tag at the beginning to avoid the spread of modified node detection due to loops.
+
+        # self.connected_nw().draw(self, "output")
 
         self.__modified = False
 

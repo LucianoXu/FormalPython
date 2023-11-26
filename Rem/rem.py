@@ -39,6 +39,9 @@ class RemNamed:
     @property
     def name(self) -> str:
         return self.__name
+    
+    def __str__(self) -> str:
+        return self.__name
 
     def type_check(self, obj, T : Type | RemSort, term : str) -> None:
         '''
@@ -101,14 +104,16 @@ T_Term = TypeVar("T_Term", bound = "RemTerm")
 class RemSort(NetworkNode, syn.ParserHost, RemNamed):
     '''
     The sorts in Rem system.
-    One important feature is that every sort itself can also be a signature.
+    One important feature is that every sort itself can also be an algebra.
     '''
     def __init__(self, name : str, symbol : str | None = None, attr_pres : Dict[str, RemSort | Type] = {}, super_sorts : Tuple[RemSort, ...] = ()):
         
         RemNamed.__init__(self, name)
         syn.ParserHost.__init__(self, symbol)
-        NetworkNode.__init__(self, super_sorts)
+        NetworkNode.__init__(self, set())
 
+        for sort in super_sorts:
+            self.append_super_sort(sort)
 
         if not isinstance(super_sorts, tuple):
             raise REM_META_Error(f"({self.name}): The super sorts should be a tuple.")
@@ -129,19 +134,7 @@ class RemSort(NetworkNode, syn.ParserHost, RemNamed):
 
         # The extra check on term attributes. Reassign to redefine.
         self.attr_extra_check : Callable[[RemTerm], None] | None = None
-        
-    #######################################################
-    # Network Visualization
-    def vlayout(self, dot : Digraph):
-        '''
-        layout of the node in Graphviz.
-        Not including edges.
-        '''
 
-        dot.node(str(hash(self)), str(self.name),
-            shape = "box", style="filled",
-            fontname = "Consolas",
-            labeljust="l")
 
     #######################################################
     # sort check - checking for valid terms of this sort
@@ -179,7 +172,6 @@ class RemSort(NetworkNode, syn.ParserHost, RemNamed):
             
                 
     
-    
     #############################################
     # Manipulation of sort network
 
@@ -202,14 +194,15 @@ class RemSort(NetworkNode, syn.ParserHost, RemNamed):
         
         return self in term.sort.upstream_nodes
     
-    def __str__(self) -> str:
-        return self.name
 
     def __eq__(self, __value: object) -> bool:
         '''
         Two sorts are considered identical only if they are the same Python object.
         '''
         return __value is self
+    
+    def __hash__(self) -> int:
+        return id(self)
     
     def __enter__(self) -> RemSort:
         return self
@@ -394,6 +387,9 @@ class RemFun(syn.ParserHost, Generic[T_Sort, T_Term], RemNamed):
         '''
         return __value is self
     
+    def __hash__(self) -> int:
+        return id(self)
+
     ##############################################
     # for pretty printing
 
