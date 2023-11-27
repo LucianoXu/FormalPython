@@ -23,7 +23,6 @@ from .rem_error import REM_META_Error, REM_CONSTRUCTION_Error, REM_type_check, R
 
 from .network import NetworkNode
 
-
 class RemNamed:
     '''
     Named terms in Rem system.
@@ -101,19 +100,18 @@ T_Sort = TypeVar("T_Sort", bound = "RemSort")
 T_Term = TypeVar("T_Term", bound = "RemTerm")
 
 
-class RemSort(NetworkNode, syn.ParserHost, RemNamed):
+class RemSort(NetworkNode, RemNamed):
     '''
     The sorts in Rem system.
     One important feature is that every sort itself can also be an algebra.
     '''
-    def __init__(self, name : str, symbol : str | None = None, attr_pres : Dict[str, RemSort | Type] = {}, super_sorts : Tuple[RemSort, ...] = ()):
+    def __init__(self, name : str, attr_pres : Dict[str, RemSort | Type] = {}, super_sorts : Tuple[RemSort, ...] = ()):
         
         RemNamed.__init__(self, name)
-        syn.ParserHost.__init__(self, symbol)
         NetworkNode.__init__(self, set())
 
         for sort in super_sorts:
-            self.append_super_sort(sort)
+            self.set_super_node(sort)
 
         if not isinstance(super_sorts, tuple):
             raise REM_META_Error(f"({self.name}): The super sorts should be a tuple.")
@@ -171,14 +169,6 @@ class RemSort(NetworkNode, syn.ParserHost, RemNamed):
         return res
             
                 
-    
-    #############################################
-    # Manipulation of sort network
-
-    def append_super_sort(self, super_sort : RemSort):
-        self.set_super_node(super_sort)
-        self.parser_node.set_super_node(super_sort.parser_node)
-
 
     #############################################
     # checkings
@@ -272,7 +262,7 @@ class RemTerm(Generic[T_Sort, T_Term]):
 
 
 
-class RemFun(syn.ParserHost, Generic[T_Sort, T_Term], RemNamed):
+class RemFun(Generic[T_Sort, T_Term], RemNamed):
     '''
     The functions in Rem system.
     '''
@@ -299,9 +289,6 @@ class RemFun(syn.ParserHost, Generic[T_Sort, T_Term], RemNamed):
         
         self.domain_sort   : T_Sort = domain_sort
 
-
-        syn.ParserHost.__init__(self, None)
-
         # the precedence of this term. applied in parsing and printing
         self.precedence : None | Tuple[str, int, str] = None
 
@@ -327,7 +314,6 @@ class RemFun(syn.ParserHost, Generic[T_Sort, T_Term], RemNamed):
     # parser setting
 
     def set_precedence(self, symbol: str, prec: int, assoc: str):
-        super().set_precedence(symbol, prec, assoc)
         self.precedence = (symbol, prec, assoc)
     
 
@@ -424,6 +410,21 @@ class RemFun(syn.ParserHost, Generic[T_Sort, T_Term], RemNamed):
                 return str(term)
 
 
+    ###################################################
+    # drawing by Graphviz
+
+    def vlayout(self, dot : Digraph, id : str, title : str):
+        dot.node(id, title,
+            shape = "box", style="filled", fillcolor = "lightyellow",
+            fontname = "Consolas",
+            labeljust="l")
+        
+    def vlayout_focus(self, dot : Digraph, id : str, title : str):
+        dot.node(id, title,
+            shape = "box", 
+            style="filled, bold", color = "red", fillcolor = "lightyellow",
+            fontname = "Consolas",
+            labeljust="l")        
     
     ###################################################
     # context manager

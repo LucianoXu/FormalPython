@@ -9,16 +9,20 @@ T = TypeVar("T", bound = "NetworkNode[T]")
 
 class Network(Generic[T]):
     def __init__(self, nodes : set[NetworkNode[T]]):
-        self._nodes = nodes
+        self._nodes = nodes.copy()
+
+    @property
+    def nodes(self) -> set[NetworkNode[T]]:
+        return self._nodes
 
     def draw(self, focused : NetworkNode[T] | None = None, output : None | str = None) -> Digraph:
         dot = Digraph()
 
         for node in self._nodes:
             if node == focused:
-                node.vlayout_focus(dot)
+                node.vlayout_focus(dot, str(hash(node)), str(node))
             else:
-                node.vlayout(dot)
+                node.vlayout(dot, str(hash(node)), str(node))
             for snode in node.super_nodes:
                 if snode in self._nodes:
                     node.elayout(snode, dot)
@@ -66,24 +70,16 @@ class NetworkNode(Generic[T]):
     def __hash__(self) -> int:
         return id(self)
     
-    def vlayout(self, dot : Digraph):
-        '''
-        layout of the node in Graphviz.
-        Not including edges.
-        '''
-
-        dot.node(str(self.__hash__()), str(self),
-            shape = "box", style="filled",
+    def vlayout(self, dot : Digraph, id : str, title : str):
+        dot.node(id, title,
+            shape = "box", style="filled", fillcolor = "gray",
             fontname = "Consolas",
             labeljust="l")
         
-    def vlayout_focus(self, dot : Digraph):
-        '''
-        layout of the node in Graphviz. Focused.
-        Not including edges.
-        '''
-        dot.node(str(self.__hash__()), str(self),
-            shape = "box", style="filled", fillcolor = "lightyellow",
+    def vlayout_focus(self, dot : Digraph, id : str, title : str):
+        dot.node(id, title,
+            shape = "box", 
+            style="filled, bold", color = "red", fillcolor = "gray",
             fontname = "Consolas",
             labeljust="l")        
 
