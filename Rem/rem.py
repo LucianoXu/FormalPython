@@ -21,9 +21,16 @@ from . import syn
 
 from .rem_error import REM_META_Error, REM_CONSTRUCTION_Error, REM_type_check, REM_other_check, REM_warning
 
-from .network import NetworkNode
+from .network import NetworkNode, Network
 
-class RemNamed:
+class RemObject:
+    def vlayout(self, dot : Digraph, id : str, title : str):
+        pass
+
+    def __hash__(self) -> int:
+        return id(self)
+
+class RemNamed(RemObject):
     '''
     Named terms in Rem system.
     '''
@@ -105,6 +112,7 @@ class RemSort(NetworkNode, RemNamed):
     The sorts in Rem system.
     One important feature is that every sort itself can also be an algebra.
     '''
+
     def __init__(self, name : str, attr_pres : Dict[str, RemSort | Type] = {}, super_sorts : Tuple[RemSort, ...] = ()):
         
         RemNamed.__init__(self, name)
@@ -194,22 +202,20 @@ class RemSort(NetworkNode, RemNamed):
     def __hash__(self) -> int:
         return id(self)
     
-    def __enter__(self) -> RemSort:
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-            
-    
+    def vlayout(self, dot: Digraph, id : str, title : str):
+        dot.node(id, title,
+            shape = "tab", style="filled", fillcolor = "gray",
+            fontname = "Consolas",
+            labeljust="l")
+        
 
-
-class RemTerm(Generic[T_Sort, T_Term]):
+class RemTerm(Generic[T_Sort, T_Term], RemObject):
     '''
     A term in the signature.
     '''
     def __init__(self, fun : RemFun[T_Sort, T_Term], *paras : T_Term):
-        self.__fun = fun
-        self.__paras = paras
+        self._fun = fun
+        self._paras = paras
 
 
     ############################################################
@@ -222,27 +228,27 @@ class RemTerm(Generic[T_Sort, T_Term]):
 
     @property
     def fun(self) -> RemFun[T_Sort, T_Term]:
-        return self.__fun
+        return self._fun
     
     @property
     def paras(self) -> Tuple[T_Term, ...]:
-        return self.__paras
+        return self._paras
     
     def __getitem__(self, i) -> T_Term:
         '''
         This syntax sugar imitate the positioning in universal algebra
         '''
-        return self.__paras[i]
+        return self._paras[i]
 
     @property
     def sort(self) -> T_Sort:
-        return self.__fun.domain_sort
+        return self._fun.domain_sort
     
     def __eq__(self, __value: object) -> bool:
         if __value is self:
             return True
         elif isinstance(__value, RemTerm):
-            return __value.__fun == self.__fun and __value.__paras == self.__paras
+            return __value._fun == self._fun and __value._paras == self._paras
         else:
             return False
 
@@ -257,6 +263,41 @@ class RemTerm(Generic[T_Sort, T_Term]):
     
     def ctx_term_str(self, super_fun : RemFun[T_Sort, T_Term], left : bool = True) -> str:
         return self.fun.ctx_term_str(self, super_fun, left)
+    
+    def vlayout(self, dot: Digraph, id : str, title : str):
+        dot.node(id, title,
+            shape = "box", style="filled", fillcolor = "gray",
+            fontname = "Consolas",
+            labeljust="l")
+        
+    def ast_vlayout(self, dot: Digraph):
+        # function symbol as node
+        self._fun.vlayout(dot, str(id(self)), str(self._fun))
+        for para in self._paras:
+            para.ast_vlayout(dot)
+
+            # subterm as edge
+            dot.edge(str(id(self)), str(id(para)))
+
+    def ast_draw(self, output : str | None = None, labelled : bool = True) -> Digraph:
+        '''
+        draw the abstruct syntax tree of the term
+        '''
+        dot = Digraph()
+        self.ast_vlayout(dot)
+        
+        if labelled:
+            # add the label
+            dot.graph_attr["label"] = str(self)
+            dot.graph_attr["fontname"] = "Consolas"
+            dot.graph_attr["labelloc"] = "t"
+
+
+        if output is not None:
+            dot.render(output, cleanup=True, engine='dot')
+
+
+        return dot
 
         
 
@@ -305,6 +346,10 @@ class RemFun(Generic[T_Sort, T_Term], RemNamed):
     @property
     def arity(self) -> int:
         return len(self.para_sorts)
+    
+    @property
+    def terminal(self) -> bool:
+        return len(self.para_sorts) == 0
     
     def set_para_doc(self, *para_doc : str) -> None:
         if len(para_doc) != self.arity:
@@ -414,26 +459,15 @@ class RemFun(Generic[T_Sort, T_Term], RemNamed):
     # drawing by Graphviz
 
     def vlayout(self, dot : Digraph, id : str, title : str):
-        dot.node(id, title,
-            shape = "box", style="filled", fillcolor = "lightyellow",
-            fontname = "Consolas",
-            labeljust="l")
-        
-    def vlayout_focus(self, dot : Digraph, id : str, title : str):
-        dot.node(id, title,
-            shape = "box", 
-            style="filled, bold", color = "red", fillcolor = "lightyellow",
-            fontname = "Consolas",
-            labeljust="l")        
-    
-    ###################################################
-    # context manager
 
-    def __enter__(self) -> RemFun[T_Sort, T_Term]:
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-            
-            
-# we can consider variables here.
+        # visual distinction between terminal/nonterminals
+        if self.terminal:
+            dot.node(id, title,
+                shape = "note", style="filled", fillcolor = "gray",
+                fontname = "Consolas",
+                labeljust="l")
+        else:
+            dot.node(id, title,
+                shape = "cds", style="filled", fillcolor = "gray",
+                fontname = "Consolas",
+                labeljust="l")

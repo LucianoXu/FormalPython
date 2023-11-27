@@ -11,24 +11,37 @@ class Network(Generic[T]):
     def __init__(self, nodes : set[NetworkNode[T]]):
         self._nodes = nodes.copy()
 
+    def add(self, node : NetworkNode[T]) -> None:
+        self._nodes.add(node)
+
+    def absorb(self, other : Network[T]) -> None:
+        self._nodes |= other._nodes
+
+    def union(self, other : Network[T]) -> Network[T]:
+        return Network(self._nodes | other._nodes)
+
     @property
     def nodes(self) -> set[NetworkNode[T]]:
         return self._nodes
-
-    def draw(self, focused : NetworkNode[T] | None = None, output : None | str = None) -> Digraph:
-        dot = Digraph()
-
+    
+    def layout(self, dot : Digraph):
+        '''
+        layout all the nodes and edges of this network
+        '''
         for node in self._nodes:
-            if node == focused:
-                node.vlayout_focus(dot, str(hash(node)), str(node))
-            else:
-                node.vlayout(dot, str(hash(node)), str(node))
+            node.vlayout(dot, str(hash(node)), str(node))
             for snode in node.super_nodes:
                 if snode in self._nodes:
                     node.elayout(snode, dot)
 
+
+    def draw(self, output : None | str = None) -> Digraph:
+        dot = Digraph()
+
+        self.layout(dot)
+
         if output:
-            dot.render(output)
+            dot.render(output, cleanup=True)
             
         return dot
 
@@ -76,18 +89,12 @@ class NetworkNode(Generic[T]):
             fontname = "Consolas",
             labeljust="l")
         
-    def vlayout_focus(self, dot : Digraph, id : str, title : str):
-        dot.node(id, title,
-            shape = "box", 
-            style="filled, bold", color = "red", fillcolor = "gray",
-            fontname = "Consolas",
-            labeljust="l")        
-
     def elayout(self, super_node : NetworkNode[T], dot : Digraph):
         '''
         One layout function for edges.
         '''
-        dot.edge(str(hash(self)), str(hash(super_node)))
+        dot.edge(str(hash(self)), str(hash(super_node)),
+                 label=None)
 
 
     
