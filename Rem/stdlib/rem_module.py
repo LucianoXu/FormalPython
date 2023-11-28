@@ -15,8 +15,6 @@ class ModuleSort(RemSort):
     pass
 
 class ModuleTerm(RemTerm[ModuleSort, "ModuleTerm"]):
-    def __init__(self, fun: RemFun, *paras: RemTerm):
-        RemTerm.__init__(self, fun, *paras)
 
     def rem_obj(self) -> set[RemObject]:
         '''

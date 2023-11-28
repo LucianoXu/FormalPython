@@ -213,7 +213,7 @@ class RemTerm(Generic[T_Sort, T_Term], RemObject):
     '''
     A term in the signature.
     '''
-    def __init__(self, fun : RemFun[T_Sort, T_Term], *paras : T_Term):
+    def __init__(self, fun : RemFun[T_Sort, T_Term], paras : Tuple[T_Term, ...]):
         self._fun = fun
         self._paras = paras
 
@@ -222,6 +222,7 @@ class RemTerm(Generic[T_Sort, T_Term], RemObject):
     # These two magic methods erase the type error for getting and setting attributes.
     def __setattr__(self, __name: str, __value: Any) -> None:
         return super().__setattr__(__name, __value)
+    
     def __getattribute__(self, __name: str) -> Any:
         return super().__getattribute__(__name)
     ############################################################
@@ -278,6 +279,16 @@ class RemTerm(Generic[T_Sort, T_Term], RemObject):
 
             # subterm as edge
             dot.edge(str(id(self)), str(id(para)))
+        
+        if self._fun.extra_para_types is not None:
+            for para_name in self._fun.extra_para_types:
+                para = getattr(self, para_name)
+                dot.node(str(id(para)), f"{para_name}={str(para)}", shape = "plain", 
+                fontname = "Consolas",
+                labeljust="l")
+
+                # subterm as edge
+                dot.edge(str(id(self)), str(id(para)))
 
     def ast_draw(self, output : str | None = None, labelled : bool = True) -> Digraph:
         '''
@@ -311,8 +322,9 @@ class RemFun(Generic[T_Sort, T_Term], RemNamed):
     # this static attribute controls the type of constructed term
     term_type : Type[RemTerm] = RemTerm
 
-    def __init__(self, name : str, para_sorts : Tuple[RemSort, ...], domain_sort : T_Sort):
+    def __init__(self, name : str, para_sorts : Tuple[RemSort, ...], domain_sort : T_Sort, extra_para_types : Dict[str, Type] | None = None):
         '''
+        extra_para_types: types for extra parameters
         '''
         RemNamed.__init__(self, name)
         
@@ -322,8 +334,28 @@ class RemFun(Generic[T_Sort, T_Term], RemNamed):
         for sort in para_sorts:
             if not isinstance(sort, RemSort):
                 raise REM_META_Error(f"({self.name}): The parameter sort '{sort}' is not an instance of class '{RemSort.__name__}'.")
-
         self.para_sorts : Tuple[RemSort, ...] = para_sorts
+
+        # default para doc
+        self.__para_doc : Tuple[str, ...] = tuple([f"para[{i}]" for i in range(self.arity)])
+        
+
+        # default extra para doc
+        self.__extra_para_doc : Dict[str, str] = {}
+
+        if extra_para_types is not None:
+            if not isinstance(extra_para_types, dict):
+                raise REM_META_Error(f"({self.name}): The extra parameter types should be a tuple.")
+            
+            for name in extra_para_types:
+                type = extra_para_types[name]
+                if not inspect.isclass(type):
+                    raise REM_META_Error(f"({self.name}): The extra parameter type '{type}' is not a type.")
+                
+            for para in extra_para_types:
+                self.__extra_para_doc[para] = str(extra_para_types[para])
+
+        self.extra_para_types : Dict[str, Type] | None = extra_para_types
 
         if not isinstance(domain_sort, RemSort):
             raise REM_META_Error(f"({self.name}): The domain sort '{domain_sort}' is not an instance of class RemSort.")
@@ -336,7 +368,6 @@ class RemFun(Generic[T_Sort, T_Term], RemNamed):
         # the documentation attributes
         self.doc : str | None = None
         self.rule_doc : str | None = None
-        self.__para_doc : Tuple[str, ...] = tuple([f"para[{i}]" for i in range(self.arity)])
 
 
         # the function specific term printing. high priority. reassign to modify
@@ -345,6 +376,9 @@ class RemFun(Generic[T_Sort, T_Term], RemNamed):
 
     @property
     def arity(self) -> int:
+        '''
+        not include extra parameters
+        '''
         return len(self.para_sorts)
     
     @property
@@ -354,6 +388,16 @@ class RemFun(Generic[T_Sort, T_Term], RemNamed):
     def set_para_doc(self, *para_doc : str) -> None:
         if len(para_doc) != self.arity:
             raise REM_META_Error(f"({self.name}): The parameter doc has {len(para_doc)} elements, which is inconsistent with the arity {self.arity}.")
+        
+    def set_extra_para_doc(self, **extr_para_doc : str) -> None:
+        if self.extra_para_types is None:
+            raise REM_META_Error(f"({self.name}): Not extra parameters.")
+        
+        for para in extr_para_doc:
+            if para not in self.extra_para_types:
+                raise REM_META_Error(f"({self.name}): '{para}' is not the name of an extra parameter.")
+            self.__extra_para_doc[para] = extr_para_doc[para]
+
         
     ############################################################
     # parser setting
@@ -370,18 +414,31 @@ class RemFun(Generic[T_Sort, T_Term], RemNamed):
         '''
         Create a `RemTerm` instance with the parameters.
         '''
+        # construct the term. construct comes first for efficiency
+        term : T_Term = self.term_type(self, paras)    # type: ignore
+
+        # check for parameters
         if len(paras) != self.arity:
             raise REM_CONSTRUCTION_Error(f"({self.name}): Invalid argument number. The function arity is {self.arity} but {len(paras)} arguments are provided.")
         
-        # check for parameters
         for i in range(self.arity):                
             self.type_check(paras[i], self.para_sorts[i], self.__para_doc[i])
+
+        # check for extra parameters        
+        if self.extra_para_types is not None:
+            for para in self.extra_para_types:
+                if para not in kwparas:
+                    raise REM_CONSTRUCTION_Error(f"({self.name}): The extra parameter '{para}' is missing.")
+                para_val = kwparas[para]
+                self.type_check(kwparas[para], self.extra_para_types[para], self.__extra_para_doc[para])
+
+                # assign the extra para
+                setattr(term, para, para_val)
+
         
         # extra check for parameters    
         self.extra_check(self, *paras, **kwparas)
 
-        # construct the term
-        term : T_Term = self.term_type(self, *paras)    # type: ignore
 
         #  modification
         self.modify(term, *paras, **kwparas)
