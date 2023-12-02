@@ -5,7 +5,7 @@ from typing import List, Tuple
 
 from graphviz import Digraph
 from ..rem_error import REM_META_Error, REM_CONSTRUCTION_Error
-from ..rem import RemSort, RemFun, RemTerm
+from ..rem import RemSort, RemFun, RemTerm, RemVar, RemCons
 
 class ProofSort(RemSort):
     '''
@@ -19,14 +19,24 @@ class ProofSort(RemSort):
             labeljust="l")
 
 
-class ProofTerm(RemTerm[ProofSort, "ProofTerm"]):    
+class ProofTerm(RemTerm):
+    pass
+
+class ProofVar(ProofTerm, RemVar):
+    def vlayout(self, dot: Digraph, id: str, title: str):
+        dot.node(id, title,
+            shape = "circle", style="filled", fillcolor = "lightgreen",
+            fontname = "Consolas",
+            labeljust="l")
+
+class ProofCons(ProofTerm, RemCons):    
     def vlayout(self, dot: Digraph, id : str, title : str):
         dot.node(id, title,
             shape = "box", style="filled", fillcolor = "lightgreen",
             fontname = "Consolas",
             labeljust="l")    
 
-class ProofFun(RemFun[ProofSort, ProofTerm]):
+class ProofFun(RemFun):
 
     def vlayout(self, dot: Digraph, id : str, title : str):
 

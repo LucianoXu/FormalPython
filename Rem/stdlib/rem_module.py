@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from ..rem import *
 
+from ..network import Network
+
 from graphviz import unflatten
 
 
 #####################################################################
-# ModuleTerm and Functors
+# ModuleCons and Functors
 
 class ModuleSort(RemSort):
     '''
@@ -14,7 +16,17 @@ class ModuleSort(RemSort):
     '''
     pass
 
-class ModuleTerm(RemTerm[ModuleSort, "ModuleTerm"]):
+class ModuleTerm(RemTerm):
+    pass
+
+class ModuleVar(ModuleTerm, RemVar):
+    def vlayout(self, dot: Digraph, id: str, title: str):
+        dot.node(id, title,
+            shape = "circle", style="filled", fillcolor = "lightblue",
+            fontname = "Consolas",
+            labeljust="l")
+
+class ModuleCons(ModuleTerm, RemCons):
 
     def rem_obj(self) -> set[RemObject]:
         '''
@@ -51,7 +63,7 @@ class ModuleTerm(RemTerm[ModuleSort, "ModuleTerm"]):
             if isinstance(obj, RemSort):
                 sort_network.absorb(Network(obj.downstream_nodes))
 
-            elif isinstance(obj, ModuleTerm):
+            elif isinstance(obj, ModuleCons):
                 obj.layout(dot, sort_network)
 
             elif isinstance(obj, RemFun) or isinstance(obj, RemTerm):
@@ -73,8 +85,8 @@ class ModuleTerm(RemTerm[ModuleSort, "ModuleTerm"]):
 
 
     
-class ModuleFun(RemFun[ModuleSort, ModuleTerm]):
-    term_type = ModuleTerm
+class ModuleFun(RemFun):
+    term_type = ModuleCons
 
     def vlayout(self, dot: Digraph, id : str, title : str):
         # visual distinction between terminal/nonterminals
