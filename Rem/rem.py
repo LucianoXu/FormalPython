@@ -301,12 +301,23 @@ class RemFun(RemNamed, Generic[T_Cons]):
     # common checkings
 
     
-    def __call__(self, *paras : RemTerm, **kwparas) -> RemCons:
+    def __call__(self, *paras : RemTerm | str, **kwparas) -> RemCons:
         '''
         Create a `RemCons` instance with the parameters.
         It will not check sort related properties, which require a context.
+
+        - paras: string elements are converted to variables
         '''
-        # construct the term. construct comes first for efficiency
+
+        # transform string to variables
+        temp_paras = []
+        for i in range(len(paras)):
+            if isinstance(paras[i], str):
+                temp_paras.append(RemVar(paras[i])) # type: ignore
+            else:
+                temp_paras.append(paras[i])
+        paras = tuple(temp_paras)
+        
         term : T_Cons = self.term_type(self, paras)
 
         # check for parameters
@@ -576,6 +587,9 @@ class RemCons(RemTerm):
     Terms from function application
     '''
     def __init__(self, fun : RemFun, paras : Tuple[RemTerm, ...]):
+        '''
+        This constructor should not be invocated manually.
+        '''
         self._fun = fun
         self._paras = paras
 
