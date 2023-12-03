@@ -11,28 +11,35 @@ from typing import Type, Tuple, Any, TypeVar, Sequence, List, Generic, Callable,
 
 from graphviz import Digraph
 
-from types import FunctionType
-
 import inspect
-import os
-import copy
 
 from . import syn
 
-from .rem_error import REM_META_Error, REM_CONSTRUCTION_Error, REM_type_check, REM_other_check, REM_warning
+from .rem_error import REM_META_Error, REM_CONSTRUCTION_Error, REM_type_check, REM_other_check, REM_warning, REM_Sort_Error
 
 from .network import NetworkNode
 
-class RemObject:
+
+# the type variable for different kinds of term constructions.
+T_Cons = TypeVar("T_Cons", bound="RemCons")
+
+class RemObject(Generic[T_Cons]):
     def vlayout(self, dot : Digraph, id : str, title : str):
+        '''
+        The layout function in Graphviz illustration
+        '''
         pass
 
     def __hash__(self) -> int:
         return id(self)
+    
+    @property
+    def graphvizID(self) -> str:
+        return str(id(self))
 
-class RemNamed(RemObject):
+class RemNamed(RemObject[T_Cons]):
     '''
-    Named terms in Rem system.
+    Named objects in Rem system.
     '''
     def __init__(self, name : str):
 
@@ -96,7 +103,7 @@ class RemNamed(RemObject):
             raise REM_CONSTRUCTION_Error(msg)
 
 
-class RemSort(NetworkNode, RemNamed):
+class RemSort(NetworkNode, RemNamed[T_Cons]):
     '''
     The sorts in Rem system.
     One important feature is that every sort itself can also be an algebra.
@@ -128,13 +135,13 @@ class RemSort(NetworkNode, RemNamed):
         self.doc : str | None = None
 
         # The extra check on term attributes. Reassign to redefine.
-        self.attr_extra_check : Callable[[RemTerm], None] | None = None
+        self.attr_extra_check : Callable[[RemTerm, RemContext], None] | None = None
 
 
     #######################################################
     # sort check - checking for valid terms of this sort
 
-    def attr_pres_check(self, term : RemTerm):
+    def attr_pres_check(self, term : RemTerm, ctx : RemContext):
         '''
         Checks that the term implements the attribute prescription of this sort.
         '''
@@ -144,14 +151,17 @@ class RemSort(NetworkNode, RemNamed):
                 raise REM_META_Error(f"The term '{term}' does not implement the attribute prescription of '{self}':\n\nThe attribute '{attr}' is not defined.")
             
             if isinstance(term.__dict__[attr], RemTerm):
-                # note that variables are not allowed here.
-                term.__dict__[attr].well_typed_check(self.__attr_pres[attr], RemContext())
+                term.__dict__[attr].well_typed_check(self.__attr_pres[attr], ctx)
             else:
                 self.type_check(term.__dict__[attr], self.__attr_pres[attr], attr)
 
+        # sort's extra check
+        if self.attr_extra_check is not None:
+            self.attr_extra_check(term, ctx)
+
     ########################################################
     # pretty printing
-    def term_str(self, term : RemCons) -> str:
+    def term_str(self, term : T_Cons) -> str:
         '''
         Return the default format string of the `term`.
         Reassign to modify.
@@ -201,7 +211,7 @@ class RemContext:
         if self is other:
             return True
         elif isinstance(other, RemContext):
-            for key in other._data:
+            for key in self._data:
                 if key not in other._data or self._data[key] != other._data[key]:
                     return False
                 
@@ -243,6 +253,7 @@ class RemTerm(RemObject):
         return super().__getattribute__(__name)
     ############################################################
 
+        
     def well_typed_decide(self, sort : RemSort, ctx : RemContext = RemContext()) -> bool:
         '''
         Decide whether this term is well-typed with the specified sort.
@@ -255,8 +266,7 @@ class RemTerm(RemObject):
         Check that the term is well typed. 
         Raise construction error otherwise.
         '''
-        if not self.well_typed_decide(sort, ctx):
-            raise REM_CONSTRUCTION_Error("type error!!")
+        raise NotImplementedError()
 
         
     def verify(self, ctx : RemContext = RemContext()) -> RemTyping:
@@ -268,6 +278,9 @@ class RemTerm(RemObject):
 
     ########################################
     # printing
+    
+    def ctx_term_str(self, super_fun : RemFun, left : bool = True) -> str:
+        return str(self)
 
     def vlayout(self, dot: Digraph, id: str, title: str):
         raise NotImplementedError()
@@ -310,8 +323,9 @@ class RemTyping(RemTerm):
         self._term : RemVar | RemCons = term
         self._ctx  : RemContext = ctx
     
-    def well_typed_decide(self, sort: RemSort, ctx: RemContext = RemContext()) -> bool:
-        return sort in self.sort.upstream_nodes and self._ctx <= ctx
+    def well_typed_check(self, sort: RemSort, ctx: RemContext = RemContext()):
+        if not (sort in self.sort.upstream_nodes and self._ctx <= ctx):
+            raise REM_Sort_Error(self, sort)
 
     def verify(self, ctx: RemContext = RemContext()) -> RemTyping:
         if not self._ctx <= ctx:
@@ -325,6 +339,10 @@ class RemTyping(RemTerm):
         else:
             return self._term.fun.domain_sort
         
+    @property
+    def graphvizID(self) -> str:
+        return self._term.graphvizID
+           
     # use the drawing of the typed term
     def vlayout(self, dot: Digraph, id: str, title: str):
         self._term.vlayout(dot, id, title)
@@ -342,8 +360,9 @@ class RemVar(RemTerm):
     def __init__(self, var : str):
         self.__var = var
 
-    def well_typed_decide(self, sort: RemSort, ctx: RemContext = RemContext()) -> bool:
-        return self.var in ctx and sort in ctx[self.var].upstream_nodes
+    def well_typed_check(self, sort: RemSort, ctx: RemContext = RemContext()):
+        if not (self.__var in ctx and sort in ctx[self.__var].upstream_nodes):
+            raise REM_Sort_Error(self, sort)
 
     def verify(self, ctx: RemContext = RemContext()) -> RemTyping:
         if not self.var in ctx:
@@ -370,7 +389,7 @@ class RemVar(RemTerm):
             labeljust="l")
         
     def ast_vlayout(self, dot: Digraph):
-        self.vlayout(dot, str(id(self)), str(self))
+        self.vlayout(dot, self.graphvizID, str(self))
 
             
 
@@ -383,6 +402,8 @@ class RemCons(RemTerm):
         self._fun = fun
         self._paras = paras
 
+            
+            
     def well_typed_decide(self, sort: RemSort, ctx: RemContext = RemContext()) -> bool:
         '''
         Assumption: no arity problem
@@ -391,17 +412,19 @@ class RemCons(RemTerm):
             if not self._paras[i].well_typed_decide(self.fun.para_sorts[i], ctx):
                 return False
         
-        return sort in  self.fun.domain_sort.upstream_nodes
+        return sort in self.fun.domain_sort.upstream_nodes
             
     def well_typed_check(self, sort: RemSort, ctx: RemContext = RemContext()):
         for i in range(self.fun.arity):
             self._paras[i].well_typed_check(self.fun.para_sorts[i], ctx)
         
         if not sort in self.fun.domain_sort.upstream_nodes:
-            raise REM_CONSTRUCTION_Error("type error")
-        #######
-        ## We can create subclasses of REM_Error to customize the output information
-        #
+            raise REM_Sort_Error(self, sort)
+        
+
+        # check the implementation of attribute prescriptions
+        self.fun.domain_sort.attr_pres_check(self, ctx)
+
 
     def verify(self, ctx: RemContext = RemContext()) -> RemTyping:
         '''
@@ -453,12 +476,12 @@ class RemCons(RemTerm):
         
     def ast_vlayout(self, dot: Digraph):
         # function symbol as node
-        self._fun.vlayout(dot, str(id(self)), str(self._fun))
+        self._fun.vlayout(dot, self.graphvizID, str(self._fun))
         for para in self._paras:
             para.ast_vlayout(dot)
 
             # subterm as edge
-            dot.edge(str(id(self)), str(id(para)))
+            dot.edge(self.graphvizID, para.graphvizID)
         
         # append the extra parameters (if exist)
         if self._fun.extra_para_types is not None:
@@ -469,20 +492,17 @@ class RemCons(RemTerm):
                 labeljust="l")
 
                 # subterm as edge
-                dot.edge(str(id(self)), str(id(para)))
-
-
-        
+                dot.edge(self.graphvizID, str(id(para)))
 
 
 
-class RemFun(RemNamed):
+class RemFun(RemNamed, Generic[T_Cons]):
     '''
     The functions in Rem system.
     '''
 
     # this static attribute controls the type of constructed term
-    term_type : Type[RemCons] = RemCons
+    term_type : Type[T_Cons] = RemCons # type: ignore
 
     def __init__(self, name : str, para_sorts : Tuple[RemSort, ...], domain_sort : RemSort, extra_para_types : Dict[str, Type] | None = None):
         '''
@@ -575,10 +595,10 @@ class RemFun(RemNamed):
     def __call__(self, *paras : RemTerm, **kwparas) -> RemCons:
         '''
         Create a `RemCons` instance with the parameters.
-        It will check the arity, not typing.
+        It will not check sort related properties, which require a context.
         '''
         # construct the term. construct comes first for efficiency
-        term : RemCons = self.term_type(self, paras)
+        term : T_Cons = self.term_type(self, paras)
 
         # check for parameters
         if len(paras) != self.arity:
@@ -602,13 +622,6 @@ class RemFun(RemNamed):
         #  modification
         self.modify(term, *paras, **kwparas)
 
-        # check the implementation of attribute prescriptions
-        self.domain_sort.attr_pres_check(term)
-
-        # sort's extra check
-        if self.domain_sort.attr_extra_check is not None:
-            self.domain_sort.attr_extra_check(term)
-
         return term
 
     # common checkings
@@ -621,7 +634,7 @@ class RemFun(RemNamed):
         '''
         pass
 
-    def modify(self, term : RemCons, *paras : RemTerm, **kwparas):
+    def modify(self, term : T_Cons, *paras : RemTerm, **kwparas):
         '''
         The modification on the term to be created.
         (redefine to enable)

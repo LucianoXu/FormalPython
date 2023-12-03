@@ -14,10 +14,17 @@ class REM_META_Error(REM_Error):
 class REM_Parser_Building_Error(REM_META_Error):
     pass
 
-
 # the errors that happen during term construction with formal systems
 class REM_CONSTRUCTION_Error(REM_Error):
     pass
+
+class REM_Sort_Error(REM_CONSTRUCTION_Error):
+    def __init__(self, obj, sort) -> None:
+        self.obj = obj
+        self.sort = sort
+
+    def __str__(self) -> str:
+        return f"\nThe term '{self.obj}' does not belong to sort '{self.sort}.'"
 
 # the error of wrong syntax when parsing
 class REM_Syntax_Error(REM_CONSTRUCTION_Error):
