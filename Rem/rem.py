@@ -328,7 +328,10 @@ class RemTerm(RemObject):
     def vlayout(self, dot: Digraph, id: str, title: str):
         raise NotImplementedError()
 
-    def ast_vlayout(self, dot: Digraph):
+    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
+        '''
+        The traveled nodes will not be drawn again.
+        '''
         raise NotImplementedError()
 
     def ast_draw(self, output : str | None = None, labelled : bool = True) -> Digraph:
@@ -336,7 +339,7 @@ class RemTerm(RemObject):
         draw the abstruct syntax tree of the term
         '''
         dot = Digraph()
-        self.ast_vlayout(dot)
+        self.ast_vlayout(dot, set())
         
         if labelled:
             # add the label
@@ -379,6 +382,9 @@ class RemVar(RemTerm):
             return self.__var == __value.__var
         else:
             return False
+        
+    def __hash__(self) -> int:
+        return hash(self.__var)
     
     def __str__(self) -> str:
         return self.__var
@@ -415,7 +421,7 @@ class RemVar(RemTerm):
             fontname = "Consolas",
             labeljust="l")
         
-    def ast_vlayout(self, dot: Digraph):
+    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
         self.vlayout(dot, self.graphvizID, str(self))
 
             
@@ -435,6 +441,10 @@ class RemCons(RemTerm):
     @property
     def sort_attr_name(self):
         return self.fun.domain_sort.attr_names
+    
+    @property
+    def extr_attrs(self) -> tuple:
+        return tuple([getattr(self, name) for name in self.sort_attr_name])
 
         
     def verify(self, ctx: RemContext = RemContext()) -> RemVTerm:
@@ -485,9 +495,18 @@ class RemCons(RemTerm):
         if __value is self:
             return True
         elif isinstance(__value, RemCons):
-            return __value._fun == self._fun and __value._paras == self._paras
+            return __value._fun == self._fun and __value._paras == self._paras and __value.extr_attrs == self.extr_attrs
         else:
             return False
+        
+    def __hash__(self) -> int:
+        res = hash(self._fun)
+
+        for para in self._paras:
+            res ^= hash(para)
+
+        # The hash value may collide when two terms only differ in extra attributes. We leave this situation to the `__eq__` function.
+        return res
 
     ############################################################
     # universal algebra methods
@@ -557,25 +576,31 @@ class RemCons(RemTerm):
             fontname = "Consolas",
             labeljust="l")
         
-    def ast_vlayout(self, dot: Digraph):
+    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
         # function symbol as node
+        if self in traveled:
+            return
+        
+        traveled.add(self)
         self._fun.vlayout(dot, self.graphvizID, str(self._fun))
-        for para in self._paras:
-            para.ast_vlayout(dot)
+
+        for i in range(len(self._paras)):
+            para = self._paras[i]
+            para.ast_vlayout(dot, traveled)
 
             # subterm as edge
-            dot.edge(self.graphvizID, para.graphvizID)
+            dot.edge(self.graphvizID, para.graphvizID, label = str(i), fontname = "Consolas")
         
         # append the extra parameters (if exist)
         if self._fun.extra_para_types is not None:
             for para_name in self._fun.extra_para_types:
                 para = getattr(self, para_name)
-                dot.node(str(id(para)), f"{para_name}={str(para)}", shape = "plain", 
+                dot.node(str(id(para)), str(para), shape = "plain", 
                 fontname = "Consolas",
                 labeljust="l")
 
                 # subterm as edge
-                dot.edge(self.graphvizID, str(id(para)))
+                dot.edge(self.graphvizID, str(id(para)), label = para_name, fontname = "Consolas")
 
 
 #########################################################
@@ -629,19 +654,29 @@ class RemVTerm:
 #########################################################
 # substitutions
 
+T_sub = TypeVar("T_sub", "RemSubst", RemTerm)
+
 class RemSubst:
     def __init__(self, data : Dict[str, RemTerm]):
         self._data = data.copy()
+
+    def copy(self) -> RemSubst:
+        return RemSubst(self._data)
 
     @property
     def data(self) -> Dict[str, RemTerm]:
         return self._data.copy()
 
-    def __call__(self, term : RemTerm) -> RemTerm:
+    def __call__(self, term : T_sub) -> T_sub:
         '''
         Apply the substitution on a term. Return the result.
         '''
-        return term.substitute(self)
+        if isinstance(term, RemTerm):
+            return term.substitute(self)
+        elif isinstance(term, RemSubst):
+            return self.composite(term)
+        else:
+            raise REM_META_Error("Invalid application of substitution.")
     
     def __contains__(self, idx) -> bool:
         return idx in self._data
@@ -657,8 +692,40 @@ class RemSubst:
         for key in self._data:
             res += f"{key} ↦ {self._data[key]}, "
         return res[:-2] + "}"
+    
 
-        
+    ################################################
+    # universal algebra methods
+    
+    @property
+    def domain(self) -> set[str]:
+        return set(self._data.keys())
+
+    @property
+    def range(self) -> set[RemTerm]:
+        return set(self._data.values())
+    
+    @property
+    def vrange(self) -> set[str]:
+        res = set()
+        for rhs in self._data.values():
+            res |= rhs.variables()
+        return res
+    
+    def composite(self, other : RemSubst) -> RemSubst:
+        '''
+        return the composition `self(other)`.
+        '''
+        new_data = {}
+
+        for var in other.domain:
+            new_data[var] = other[var].substitute(self)
+
+        for var in self.domain - other.domain:
+            new_data[var] = self[var]
+
+        return RemSubst(new_data)
+
         
 
 
