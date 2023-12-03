@@ -283,6 +283,44 @@ class RemTerm(RemObject):
         '''
         raise NotImplementedError()
     
+    ################################################
+    # universal algebra methods
+    
+    
+    def pos(self, pos : str) -> RemTerm:
+        '''
+        Get the subterm at the specified position.
+        - `pos`: Empty string represents root. Parameter index starts from `0`.
+        (It only supports parameter number less than 10, but I think it's sufficient for now.)
+        '''
+        raise NotImplementedError()
+    
+    @property
+    def size(self) -> int:
+        '''
+        Return the size of the abstract syntax tree.
+        '''
+        raise NotImplementedError()
+    
+    def variables(self) -> set[str]:
+        '''
+        Return a set of (the name of) all variables in this term.
+        '''
+        raise NotImplementedError()
+
+    @property
+    def ground(self) -> bool:
+        return len(self.variables()) == 0
+    
+    def substitute(self, sigma : RemSubstitution) -> RemTerm:
+        '''
+        The substitution will preserve well-typed proof when possible.
+        '''
+        raise NotImplementedError()
+    
+    ################################################
+
+
 
     ########################################
     # printing
@@ -349,6 +387,26 @@ class RemVar(RemTerm):
     
     def __str__(self) -> str:
         return self.__var
+    
+
+    ############################################################
+    # universal algebra methods
+    
+    def pos(self, pos : str) -> RemVar:
+        if pos == "":
+            return self
+        else:
+            raise REM_CONSTRUCTION_Error(f"Invalid position '{pos}' for term '{self}'.")
+        
+    @property
+    def size(self) -> int:
+        return 1
+    
+    def variables(self) -> set[str]:
+        return {self.__var}
+
+
+    ############################################################
     
     def vlayout(self, dot: Digraph, id: str, title: str):
         dot.node(id, title,
@@ -427,6 +485,36 @@ class RemCons(RemTerm):
         else:
             return False
 
+    ############################################################
+    # universal algebra methods
+
+    def pos(self, pos : str) -> RemTerm:
+        if pos == "":
+            return self
+        else:
+            if int(pos[0]) < self.fun.arity:
+                return self._paras[int(pos[0])].pos(pos[1:])
+            else:
+                raise REM_CONSTRUCTION_Error(f"Invalid position '{pos}' for term '{self}'.")
+            
+    @property
+    def size(self) -> int:
+        res = 1
+        for para in self._paras:
+            res += para.size
+        return res
+    
+    def variables(self) -> set[str]:
+        res = set()
+        for para in self._paras:
+            res |= para.variables()
+
+        return res
+
+
+    ############################################################
+
+
     def __str__(self) -> str:
         '''
         The formatted string of a term is determined by the function.
@@ -464,6 +552,33 @@ class RemCons(RemTerm):
 
                 # subterm as edge
                 dot.edge(self.graphvizID, str(id(para)))
+
+
+#########################################################
+# substitutions
+
+class RemSubstitution:
+    def __init__(self, data : Dict[str, RemTerm]):
+        self._data = data.copy()
+
+    @property
+    def data(self) -> Dict[str, RemTerm]:
+        return self._data
+
+    def __call__(self, term : RemTerm) -> RemTerm:
+        '''
+        Apply the substitution on a term. Return the result.
+        '''
+        return term.substitute(self)
+    
+    def __contains__(self, idx) -> bool:
+        return idx in self._data
+
+    def __getitem__(self, idx) -> RemTerm:
+        return self._data[idx]
+
+        
+
 
 
 
