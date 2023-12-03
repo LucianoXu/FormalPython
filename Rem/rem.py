@@ -945,3 +945,132 @@ class RemSubst:
         '''
         # This is the equivalent condition for idempotent
         return len(self.domain & self.vrange) == 0
+    
+
+class RemUnification:
+    '''
+    A unification problem in Rem system.
+    '''
+    def __init__(self, eqs : List[Tuple[RemTerm, RemTerm]]):
+        self.eqs = eqs
+
+    def __str__(self) -> str:
+        if len(self.eqs) == 0:
+            return "{}"
+        
+        res = "{"
+        for lhs, rhs in self.eqs:
+            res += f"{lhs} =? {rhs}, "
+        return res[:-2] + "}"
+    
+    @property
+    def variables(self) -> set[str]:
+        res = set()
+        for lhs, rhs in self.eqs:
+            res |= lhs.variables() | rhs.variables()
+        return res        
+    
+    @property
+    def solved(self) -> bool:
+        '''
+        Check whether the unification problem is in the solved form.
+        '''
+        var_set : set[str] = set()
+        for eq in self.eqs:
+            if isinstance(eq[0], RemVar):
+                if eq[0].var in var_set:
+                    return False
+                else:
+                    var_set.add(eq[0].var)
+            else:
+                return False
+            
+        # none of them appear on the right
+        for eq in self.eqs:
+            if len(var_set & eq[1].variables()) > 0:
+                return False
+            
+        return True
+    
+
+    def unify(self) -> RemSubst | None:
+        '''
+        Reduce the problem and 
+
+        Based on [Term Rewriting and All That] Sec.4.5, Syntactic Unification.
+        '''
+
+        eqs = self.eqs.copy()
+
+        while True:
+
+            modified = False
+            for i in range(len(eqs)):
+                lhs, rhs = eqs[i]
+
+                # Delete
+                if lhs == rhs:
+                    eqs = eqs[:i] + eqs[i+1:]
+
+                    modified = True
+                    break
+
+                if isinstance(lhs, RemCons) and isinstance(rhs, RemCons):
+                    # Decompose
+                    if lhs.fun == rhs.fun:
+                        eqs = eqs[:i] + eqs[i+1:]
+                        for i in range(lhs.fun.arity):
+                            eqs.append((lhs.paras[i], rhs.paras[i]))
+
+                        modified = True
+                        break
+                            
+                    # Clash
+                    else:
+                        return None
+                
+                # Orient
+                if isinstance(rhs, RemVar) and not isinstance(lhs, RemVar):
+                    eqs[i] = (rhs, lhs)
+
+                    modified = True
+                    break
+
+                if isinstance(lhs, RemVar): 
+
+                    # calculate the variable of the rest equations
+                    varS = set()
+                    for j in range(len(eqs)):
+                        if j != i:
+                            _lhs, _rhs = eqs[j]
+                            varS |= _lhs.variables() | _rhs.variables()
+                    
+                    # Eliminate
+                    if lhs.var in (varS - rhs.variables()):
+                        sub = RemSubst({lhs.var : rhs})
+                        for j in range(len(eqs)):
+                            if j != i:
+                                _lhs, _rhs = eqs[j]
+                                eqs[j] = (sub(_lhs), sub(_rhs))
+
+                        modified = True
+                        break
+
+                    # Occurs-Check
+                    if lhs.var in rhs.variables() and lhs != rhs:
+                        return None
+                    
+            if not modified:
+                break
+                
+        assert RemUnification(eqs).solved
+
+        sol = {}
+        for lhs, rhs in eqs:
+            assert isinstance(lhs, RemVar)
+            sol[lhs.var] = rhs
+
+        return RemSubst(sol)
+
+
+
