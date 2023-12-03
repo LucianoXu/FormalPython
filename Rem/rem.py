@@ -13,7 +13,7 @@ from graphviz import Digraph
 
 import inspect
 
-from . import syn
+import copy
 
 from .rem_error import REM_META_Error, REM_CONSTRUCTION_Error, REM_type_check, REM_other_check, REM_warning, REM_Sort_Error
 
@@ -131,11 +131,18 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
         
         self.__attr_pres = attr_pres.copy()
 
+        self.__attr_names = tuple(self.__attr_pres.keys())
+
         # the documentation attribute
         self.doc : str | None = None
 
         # The extra check on term attributes. Reassign to redefine.
         self.attr_extra_check : Callable[[RemTerm, RemContext], None] | None = None
+
+    @property
+    def attr_names(self) -> Tuple[str, ...]:
+        return self.__attr_names
+
 
 
     #######################################################
@@ -236,6 +243,17 @@ class RemContext:
 
     def __getitem__(self, idx) -> RemSort:
         return self._data[idx]
+    
+    def __str__(self) -> str:
+
+        if len(self._data.keys()) == 0:
+            return "[]"
+        
+        res = "["
+
+        for key in self._data:
+            res += f"{key} : {self._data[key]}; "
+        return res[:-2] + "]"
 
 
 
@@ -291,7 +309,7 @@ class RemTerm(RemObject):
     def ground(self) -> bool:
         return len(self.variables()) == 0
     
-    def substitute(self, sigma : RemSubstitution) -> RemTerm:
+    def substitute(self, sigma : RemSubst) -> RemTerm:
         '''
         The substitution will preserve well-typed proof when possible.
         '''
@@ -381,6 +399,12 @@ class RemVar(RemTerm):
     
     def variables(self) -> set[str]:
         return {self.__var}
+    
+    def substitute(self, sigma: RemSubst) -> RemTerm:
+        if self.__var in sigma:
+            return sigma[self.__var]
+        else:
+            return self
 
 
     ############################################################
@@ -404,6 +428,13 @@ class RemCons(RemTerm):
     def __init__(self, fun : RemFun, paras : Tuple[RemTerm, ...]):
         self._fun = fun
         self._paras = paras
+
+    def copy(self) -> RemCons:
+        return copy.copy(self)
+    
+    @property
+    def sort_attr_name(self):
+        return self.fun.domain_sort.attr_names
 
         
     def verify(self, ctx: RemContext = RemContext()) -> RemVTerm:
@@ -483,6 +514,26 @@ class RemCons(RemTerm):
             res |= para.variables()
 
         return res
+    
+    def substitute(self, sigma: RemSubst) -> RemCons:
+        '''
+        The extra attributes are substituted as well
+        '''
+        res = self.copy()
+
+        new_paras = []
+        for i in range(len(res._paras)):
+            new_paras.append(res._paras[i].substitute(sigma))
+
+        res._paras = tuple(new_paras)
+
+        for name in res.sort_attr_name:
+            sort_attr = getattr(res, name)
+            if isinstance(sort_attr, RemTerm):
+                setattr(res, name, sort_attr.substitute(sigma))
+
+        return res
+        
 
 
     ############################################################
@@ -569,19 +620,22 @@ class RemVTerm:
     
     def __str__(self) -> str:
         return str(self.term)
+    
+    def full_str(self) -> str:
+        return f"{self.ctx} ⊢ {self.term} : {self.sort}"
 
 
 
 #########################################################
 # substitutions
 
-class RemSubstitution:
+class RemSubst:
     def __init__(self, data : Dict[str, RemTerm]):
         self._data = data.copy()
 
     @property
     def data(self) -> Dict[str, RemTerm]:
-        return self._data
+        return self._data.copy()
 
     def __call__(self, term : RemTerm) -> RemTerm:
         '''
@@ -594,7 +648,17 @@ class RemSubstitution:
 
     def __getitem__(self, idx) -> RemTerm:
         return self._data[idx]
+    
+    def __str__(self):
+        if len(self._data.keys()) == 0:
+            return "{}"
+        
+        res = "{"
+        for key in self._data:
+            res += f"{key} ↦ {self._data[key]}, "
+        return res[:-2] + "}"
 
+        
         
 
 
