@@ -159,7 +159,7 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
             
             if isinstance(self.__attr_pres[attr], RemSort):
                 self.type_check(term.__dict__[attr], RemTerm, attr)
-                vt = term.__dict__[attr].verify(ctx)
+                vt = RemVTerm.verify(term.__dict__[attr], ctx)
                 if not vt.well_typed(self.__attr_pres[attr]):
                     raise REM_Sort_Error(term.__dict__[attr], self.__attr_pres[attr])
             else:
@@ -205,539 +205,13 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
             labeljust="l")
         
 
-# the type of contexts for the order sorted algebra
-class RemContext:
-    '''
-    The content of a RemContext cannot be modified.
-    '''
-    def __init__(self, data : Dict[str, RemSort] = {}):
-        self._data = data.copy()
-
-    @property
-    def data(self) -> Dict[str, RemSort]:
-        return self._data.copy()
-
-    def __le__(self, other) -> bool:
-        if self is other:
-            return True
-        elif isinstance(other, RemContext):
-            for key in self._data:
-                if key not in other._data or self._data[key] != other._data[key]:
-                    return False
-                
-            return True
-        
-        else:
-            return False
-    
-    def __eq__(self, other) -> bool:
-        if self is other:
-            return True
-        elif isinstance(other, RemContext):
-            return self._data == other._data
-        else:
-            return False
-        
-    def __contains__(self, idx) -> bool:
-        return idx in self._data
-
-    def __getitem__(self, idx) -> RemSort:
-        return self._data[idx]
-    
-    def __str__(self) -> str:
-
-        if len(self._data.keys()) == 0:
-            return "[]"
-        
-        res = "["
-
-        for key in self._data:
-            res += f"{key} : {self._data[key]}; "
-        return res[:-2] + "]"
-
-
-
-
-class RemTerm(RemObject):
-    '''
-    A term in the signature, including:
-        - RemVar (variable)
-        - RemCons (function symbol)
-    '''
-
-    ############################################################
-    # These two magic methods erase the type error for getting and setting attributes.
-    def __setattr__(self, __name: str, __value: Any) -> None:
-        return super().__setattr__(__name, __value)
-    
-    def __getattribute__(self, __name: str) -> Any:
-        return super().__getattribute__(__name)
-    ############################################################
-
-    def verify(self, ctx : RemContext = RemContext()) -> RemVTerm:
-        '''
-        Construct the well-typed term in the specified context.
-        '''
-        raise NotImplementedError()
-    
-    ################################################
-    # universal algebra methods
-    
-    
-    def pos(self, pos : str) -> RemTerm:
-        '''
-        Get the subterm at the specified position.
-        - `pos`: Empty string represents root. Parameter index starts from `0`.
-        (It only supports parameter number less than 10, but I think it's sufficient for now.)
-        '''
-        raise NotImplementedError()
-    
-    @property
-    def size(self) -> int:
-        '''
-        Return the size of the abstract syntax tree.
-        '''
-        raise NotImplementedError()
-    
-    def variables(self) -> set[str]:
-        '''
-        Return a set of (the name of) all variables in this term.
-        '''
-        raise NotImplementedError()
-
-    @property
-    def ground(self) -> bool:
-        return len(self.variables()) == 0
-    
-    def substitute(self, sigma : RemSubst) -> RemTerm:
-        '''
-        The substitution will preserve well-typed proof when possible.
-        '''
-        raise NotImplementedError()
-    
-    ################################################
-
-
-
-    ########################################
-    # printing
-    
-    def ctx_term_str(self, super_fun : RemFun, left : bool = True) -> str:
-        return str(self)
-
-    def vlayout(self, dot: Digraph, id: str, title: str):
-        raise NotImplementedError()
-
-    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
-        '''
-        The traveled nodes will not be drawn again.
-        '''
-        raise NotImplementedError()
-
-    def ast_draw(self, output : str | None = None, labelled : bool = True) -> Digraph:
-        '''
-        draw the abstruct syntax tree of the term
-        '''
-        dot = Digraph()
-        self.ast_vlayout(dot, set())
-        
-        if labelled:
-            # add the label
-            dot.graph_attr["label"] = str(self)
-            dot.graph_attr["fontname"] = "Consolas"
-            dot.graph_attr["labelloc"] = "t"
-
-
-        if output is not None:
-            dot.render(output, cleanup=True, engine='dot')
-
-
-        return dot
-
-            
-
-class RemVar(RemTerm):
-    def __init__(self, var : str):
-        self.__var = var
-
-    def verify(self, ctx: RemContext = RemContext()) -> RemVTerm:
-        if not self.var in ctx:
-            raise REM_CONSTRUCTION_Error(f"Well-typed term cannot be constructed. Variable '{self.var}' is not defined in the context.")
-
-        return RemVTerm(self, ctx)
-
-    @property
-    def sort(self) -> RemSort | None:
-        if self._ctx is not None:
-            return self._ctx[self.__var]
-        else:
-            return None
-    
-    @property
-    def var(self) -> str:
-        return self.__var
-    
-    def __eq__(self, __value: object) -> bool:
-        if isinstance(__value, RemVar):
-            return self.__var == __value.__var
-        else:
-            return False
-        
-    def __hash__(self) -> int:
-        return hash(self.__var)
-    
-    def __str__(self) -> str:
-        return self.__var
-    
-
-    ############################################################
-    # universal algebra methods
-    
-    def pos(self, pos : str) -> RemVar:
-        if pos == "":
-            return self
-        else:
-            raise REM_CONSTRUCTION_Error(f"Invalid position '{pos}' for term '{self}'.")
-        
-    @property
-    def size(self) -> int:
-        return 1
-    
-    def variables(self) -> set[str]:
-        return {self.__var}
-    
-    def substitute(self, sigma: RemSubst) -> RemTerm:
-        if self.__var in sigma:
-            return sigma[self.__var]
-        else:
-            return self
-
-
-    ############################################################
-    
-    def vlayout(self, dot: Digraph, id: str, title: str):
-        dot.node(id, title,
-            shape = "circle", style="filled", fillcolor = "gray",
-            fontname = "Consolas",
-            labeljust="l")
-        
-    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
-        self.vlayout(dot, self.graphvizID, str(self))
-
-            
-
-
-class RemCons(RemTerm):
-    '''
-    Terms from function application
-    '''
-    def __init__(self, fun : RemFun, paras : Tuple[RemTerm, ...]):
-        self._fun = fun
-        self._paras = paras
-
-    def copy(self) -> RemCons:
-        return copy.copy(self)
-    
-    @property
-    def sort_attr_name(self):
-        return self.fun.domain_sort.attr_names
-    
-    @property
-    def extr_attrs(self) -> tuple:
-        return tuple([getattr(self, name) for name in self.sort_attr_name])
-
-        
-    def verify(self, ctx: RemContext = RemContext()) -> RemVTerm:
-        '''
-        Check the typing with the context ctx.
-        '''
-
-
-        # check the subterms
-        for i in range(self.fun.arity):
-            vt = self._paras[i].verify(ctx)
-            if not vt.well_typed(self.fun.para_sorts[i]):
-                raise REM_Sort_Error(self._paras[i], self.fun.para_sorts[i])
-
-        if not self.fun.domain_sort in self.fun.domain_sort.upstream_nodes:
-            raise REM_Sort_Error(self, self.fun.domain_sort)
-
-        # check the implementation of attribute prescriptions. note that extra Rem terms are check w.r.t. the same context
-        self.fun.domain_sort.attr_pres_check(self, ctx)
-
-        return RemVTerm(self, ctx)
-
-
-
-    @property
-    def sort(self) -> RemSort | None:
-        if self._ctx is not None:
-            return self.fun.domain_sort
-        else:
-            return None
-        
-        
-    @property
-    def fun(self) -> RemFun:
-        return self._fun
-    
-    @property
-    def paras(self) -> Tuple[RemTerm, ...]:
-        return self._paras
-    
-    def __getitem__(self, i) -> RemTerm:
-        '''
-        This syntax sugar imitate the positioning in universal algebra
-        '''
-        return self._paras[i]
-    
-    def __eq__(self, __value: object) -> bool:
-        if __value is self:
-            return True
-        elif isinstance(__value, RemCons):
-            return __value._fun == self._fun and __value._paras == self._paras and __value.extr_attrs == self.extr_attrs
-        else:
-            return False
-        
-    def __hash__(self) -> int:
-        res = hash(self._fun)
-
-        for para in self._paras:
-            res ^= hash(para)
-
-        # The hash value may collide when two terms only differ in extra attributes. We leave this situation to the `__eq__` function.
-        return res
-
-    ############################################################
-    # universal algebra methods
-
-    def pos(self, pos : str) -> RemTerm:
-        if pos == "":
-            return self
-        else:
-            if int(pos[0]) < self.fun.arity:
-                return self._paras[int(pos[0])].pos(pos[1:])
-            else:
-                raise REM_CONSTRUCTION_Error(f"Invalid position '{pos}' for term '{self}'.")
-            
-    @property
-    def size(self) -> int:
-        res = 1
-        for para in self._paras:
-            res += para.size
-        return res
-    
-    def variables(self) -> set[str]:
-        res = set()
-        for para in self._paras:
-            res |= para.variables()
-
-        return res
-    
-    def substitute(self, sigma: RemSubst) -> RemCons:
-        '''
-        The extra attributes are substituted as well
-        '''
-        res = self.copy()
-
-        new_paras = []
-        for i in range(len(res._paras)):
-            new_paras.append(res._paras[i].substitute(sigma))
-
-        res._paras = tuple(new_paras)
-
-        for name in res.sort_attr_name:
-            sort_attr = getattr(res, name)
-            if isinstance(sort_attr, RemTerm):
-                setattr(res, name, sort_attr.substitute(sigma))
-
-        return res
-        
-
-
-    ############################################################
-
-
-    def __str__(self) -> str:
-        '''
-        The formatted string of a term is determined by the function.
-        '''
-        if self.fun.term_str is not None:
-            return self.fun.term_str(self)
-        else:
-            return self.fun.domain_sort.term_str(self)
-    
-    def ctx_term_str(self, super_fun : RemFun, left : bool = True) -> str:
-        return self.fun.ctx_term_str(self, super_fun, left)
-    
-    def vlayout(self, dot: Digraph, id : str, title : str):
-        dot.node(id, title,
-            shape = "box", style="filled", fillcolor = "gray",
-            fontname = "Consolas",
-            labeljust="l")
-        
-    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
-        # function symbol as node
-        if self in traveled:
-            return
-        
-        traveled.add(self)
-        self._fun.vlayout(dot, self.graphvizID, str(self._fun))
-
-        for i in range(len(self._paras)):
-            para = self._paras[i]
-            para.ast_vlayout(dot, traveled)
-
-            # subterm as edge
-            dot.edge(self.graphvizID, para.graphvizID, label = str(i), fontname = "Consolas")
-        
-        # append the extra parameters (if exist)
-        if self._fun.extra_para_types is not None:
-            for para_name in self._fun.extra_para_types:
-                para = getattr(self, para_name)
-                dot.node(str(id(para)), str(para), shape = "plain", 
-                fontname = "Consolas",
-                labeljust="l")
-
-                # subterm as edge
-                dot.edge(self.graphvizID, str(id(para)), label = para_name, fontname = "Consolas")
-
-
-#########################################################
-# verified terms
-class RemVTerm:
-    def __init__(self, term : RemTerm, ctx : RemContext):
-        self._term = term
-        self._ctx = ctx
-    
-    @property
-    def term(self) -> RemTerm:
-        return self._term
-    
-    @property
-    def ctx(self) -> RemContext:
-        return self._ctx
-    
-    @property
-    def sort(self) -> RemSort:
-        if isinstance(self._term, RemVar):
-            return self._ctx[self._term.var]
-        elif isinstance(self._term, RemCons):
-            return self._term.fun.domain_sort
-        else:
-            raise Exception()
-        
-
-    def well_typed(self, sort: RemSort) -> bool:
-        '''
-        only verified terms can check the well-typed proof
-        '''
-        return sort in self.sort.upstream_nodes
-    
-    def __getattribute__(self, __name: str) -> Any:
-        '''
-        The attributes of the verified term can be directly accessed.
-        '''
-        try:
-            return object.__getattribute__(self, __name)
-        except AttributeError:
-            return object.__getattribute__(self._term, __name)
-    
-    def __str__(self) -> str:
-        return str(self.term)
-    
-    def full_str(self) -> str:
-        return f"{self.ctx} ⊢ {self.term} : {self.sort}"
-
-
-
-#########################################################
-# substitutions
-
-T_sub = TypeVar("T_sub", "RemSubst", RemTerm)
-
-class RemSubst:
-    def __init__(self, data : Dict[str, RemTerm]):
-        self._data = data.copy()
-
-    def copy(self) -> RemSubst:
-        return RemSubst(self._data)
-
-    @property
-    def data(self) -> Dict[str, RemTerm]:
-        return self._data.copy()
-
-    def __call__(self, term : T_sub) -> T_sub:
-        '''
-        Apply the substitution on a term. Return the result.
-        '''
-        if isinstance(term, RemTerm):
-            return term.substitute(self)
-        elif isinstance(term, RemSubst):
-            return self.composite(term)
-        else:
-            raise REM_META_Error("Invalid application of substitution.")
-    
-    def __contains__(self, idx) -> bool:
-        return idx in self._data
-
-    def __getitem__(self, idx) -> RemTerm:
-        return self._data[idx]
-    
-    def __str__(self):
-        if len(self._data.keys()) == 0:
-            return "{}"
-        
-        res = "{"
-        for key in self._data:
-            res += f"{key} ↦ {self._data[key]}, "
-        return res[:-2] + "}"
-    
-
-    ################################################
-    # universal algebra methods
-    
-    @property
-    def domain(self) -> set[str]:
-        return set(self._data.keys())
-
-    @property
-    def range(self) -> set[RemTerm]:
-        return set(self._data.values())
-    
-    @property
-    def vrange(self) -> set[str]:
-        res = set()
-        for rhs in self._data.values():
-            res |= rhs.variables()
-        return res
-    
-    def composite(self, other : RemSubst) -> RemSubst:
-        '''
-        return the composition `self(other)`.
-        '''
-        new_data = {}
-
-        for var in other.domain:
-            new_data[var] = other[var].substitute(self)
-
-        for var in self.domain - other.domain:
-            new_data[var] = self[var]
-
-        return RemSubst(new_data)
-
-        
-
-
-
-
 class RemFun(RemNamed, Generic[T_Cons]):
     '''
     The functions in Rem system.
     '''
 
     # this static attribute controls the type of constructed term
-    term_type : Type[T_Cons] = RemCons # type: ignore
+    term_type : Type[T_Cons]
 
     def __init__(self, name : str, para_sorts : Tuple[RemSort, ...], domain_sort : RemSort, extra_para_types : Dict[str, Type] | None = None):
         '''
@@ -938,3 +412,536 @@ class RemFun(RemNamed, Generic[T_Cons]):
                 shape = "cds", style="filled", fillcolor = "gray",
                 fontname = "Consolas",
                 labeljust="l")
+
+
+class RemTerm(RemObject):
+    '''
+    A term in the signature, including:
+        - RemVar (variable)
+        - RemCons (function symbol)
+    '''
+
+    ############################################################
+    # These two magic methods erase the type error for getting and setting attributes.
+    def __setattr__(self, __name: str, __value: Any) -> None:
+        return super().__setattr__(__name, __value)
+    
+    def __getattribute__(self, __name: str) -> Any:
+        return super().__getattribute__(__name)
+    ############################################################
+
+    ################################################
+    # universal algebra methods
+    
+    
+    def pos(self, pos : str) -> RemTerm:
+        '''
+        Get the subterm at the specified position.
+        - `pos`: Empty string represents root. Parameter index starts from `0`.
+        (It only supports parameter number less than 10, but I think it's sufficient for now.)
+        '''
+        raise NotImplementedError()
+    
+    @property
+    def size(self) -> int:
+        '''
+        Return the size of the abstract syntax tree.
+        '''
+        raise NotImplementedError()
+    
+    def variables(self) -> set[str]:
+        '''
+        Return a set of (the name of) all variables in this term.
+        '''
+        raise NotImplementedError()
+
+    @property
+    def ground(self) -> bool:
+        return len(self.variables()) == 0
+    
+    def substitute(self, sigma : RemSubst) -> RemTerm:
+        '''
+        The substitution will preserve well-typed proof when possible.
+        '''
+        raise NotImplementedError()
+    
+    ################################################
+
+
+
+    ########################################
+    # printing
+    
+    def ctx_term_str(self, super_fun : RemFun, left : bool = True) -> str:
+        return str(self)
+
+    def vlayout(self, dot: Digraph, id: str, title: str):
+        raise NotImplementedError()
+
+    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
+        '''
+        The traveled nodes will not be drawn again.
+        '''
+        raise NotImplementedError()
+
+    def ast_draw(self, output : str | None = None, labelled : bool = True) -> Digraph:
+        '''
+        draw the abstruct syntax tree of the term
+        '''
+        dot = Digraph()
+        self.ast_vlayout(dot, set())
+        
+        if labelled:
+            # add the label
+            dot.graph_attr["label"] = str(self)
+            dot.graph_attr["fontname"] = "Consolas"
+            dot.graph_attr["labelloc"] = "t"
+
+
+        if output is not None:
+            dot.render(output, cleanup=True, engine='dot')
+
+
+        return dot
+
+            
+
+class RemVar(RemTerm):
+    def __init__(self, var : str):
+        self.__var = var
+
+    @property
+    def sort(self) -> RemSort | None:
+        if self._ctx is not None:
+            return self._ctx[self.__var]
+        else:
+            return None
+    
+    @property
+    def var(self) -> str:
+        return self.__var
+    
+    def __eq__(self, __value: object) -> bool:
+        if isinstance(__value, RemVar):
+            return self.__var == __value.__var
+        else:
+            return False
+        
+    def __hash__(self) -> int:
+        return hash(self.__var)
+    
+    def __str__(self) -> str:
+        return self.__var
+    
+
+    ############################################################
+    # universal algebra methods
+    
+    def pos(self, pos : str) -> RemVar:
+        if pos == "":
+            return self
+        else:
+            raise REM_CONSTRUCTION_Error(f"Invalid position '{pos}' for term '{self}'.")
+        
+    @property
+    def size(self) -> int:
+        return 1
+    
+    def variables(self) -> set[str]:
+        return {self.__var}
+    
+    def substitute(self, sigma: RemSubst) -> RemTerm:
+        if self.__var in sigma:
+            return sigma[self.__var]
+        else:
+            return self
+
+
+    ############################################################
+    
+    def vlayout(self, dot: Digraph, id: str, title: str):
+        dot.node(id, title,
+            shape = "circle", style="filled", fillcolor = "gray",
+            fontname = "Consolas",
+            labeljust="l")
+        
+    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
+        self.vlayout(dot, self.graphvizID, str(self))
+
+            
+
+
+class RemCons(RemTerm):
+    '''
+    Terms from function application
+    '''
+    def __init__(self, fun : RemFun, paras : Tuple[RemTerm, ...]):
+        self._fun = fun
+        self._paras = paras
+
+    def copy(self) -> RemCons:
+        return copy.copy(self)
+    
+    @property
+    def sort_attr_name(self):
+        return self.fun.domain_sort.attr_names
+    
+    @property
+    def extr_attrs(self) -> tuple:
+        return tuple([getattr(self, name) for name in self.sort_attr_name])
+
+        
+
+    @property
+    def sort(self) -> RemSort | None:
+        if self._ctx is not None:
+            return self.fun.domain_sort
+        else:
+            return None
+        
+        
+    @property
+    def fun(self) -> RemFun:
+        return self._fun
+    
+    @property
+    def paras(self) -> Tuple[RemTerm, ...]:
+        return self._paras
+    
+    def __getitem__(self, i) -> RemTerm:
+        '''
+        This syntax sugar imitate the positioning in universal algebra
+        '''
+        return self._paras[i]
+    
+    def __eq__(self, __value: object) -> bool:
+        if __value is self:
+            return True
+        elif isinstance(__value, RemCons):
+            return __value._fun == self._fun and __value._paras == self._paras and __value.extr_attrs == self.extr_attrs
+        else:
+            return False
+        
+    def __hash__(self) -> int:
+        res = hash(self._fun)
+
+        for para in self._paras:
+            res ^= hash(para)
+
+        # The hash value may collide when two terms only differ in extra attributes. We leave this situation to the `__eq__` function.
+        return res
+
+    ############################################################
+    # universal algebra methods
+
+    def pos(self, pos : str) -> RemTerm:
+        if pos == "":
+            return self
+        else:
+            if int(pos[0]) < self.fun.arity:
+                return self._paras[int(pos[0])].pos(pos[1:])
+            else:
+                raise REM_CONSTRUCTION_Error(f"Invalid position '{pos}' for term '{self}'.")
+            
+    @property
+    def size(self) -> int:
+        res = 1
+        for para in self._paras:
+            res += para.size
+        return res
+    
+    def variables(self) -> set[str]:
+        res = set()
+        for para in self._paras:
+            res |= para.variables()
+
+        return res
+    
+    def substitute(self, sigma: RemSubst) -> RemCons:
+        '''
+        The extra attributes are substituted as well
+        '''
+        res = self.copy()
+
+        new_paras = []
+        for i in range(len(res._paras)):
+            new_paras.append(res._paras[i].substitute(sigma))
+
+        res._paras = tuple(new_paras)
+
+        for name in res.sort_attr_name:
+            sort_attr = getattr(res, name)
+            if isinstance(sort_attr, RemTerm):
+                setattr(res, name, sort_attr.substitute(sigma))
+
+        return res
+        
+
+
+    ############################################################
+
+
+    def __str__(self) -> str:
+        '''
+        The formatted string of a term is determined by the function.
+        '''
+        if self.fun.term_str is not None:
+            return self.fun.term_str(self)
+        else:
+            return self.fun.domain_sort.term_str(self)
+    
+    def ctx_term_str(self, super_fun : RemFun, left : bool = True) -> str:
+        return self.fun.ctx_term_str(self, super_fun, left)
+    
+    def vlayout(self, dot: Digraph, id : str, title : str):
+        dot.node(id, title,
+            shape = "box", style="filled", fillcolor = "gray",
+            fontname = "Consolas",
+            labeljust="l")
+        
+    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
+        # function symbol as node
+        if self in traveled:
+            return
+        
+        traveled.add(self)
+        self._fun.vlayout(dot, self.graphvizID, str(self._fun))
+
+        for i in range(len(self._paras)):
+            para = self._paras[i]
+            para.ast_vlayout(dot, traveled)
+
+            # subterm as edge
+            dot.edge(self.graphvizID, para.graphvizID, label = str(i), fontname = "Consolas")
+        
+        # append the extra parameters (if exist)
+        if self._fun.extra_para_types is not None:
+            for para_name in self._fun.extra_para_types:
+                para = getattr(self, para_name)
+                dot.node(str(id(para)), str(para), shape = "plain", 
+                fontname = "Consolas",
+                labeljust="l")
+
+                # subterm as edge
+                dot.edge(self.graphvizID, str(id(para)), label = para_name, fontname = "Consolas")
+
+
+RemFun.term_type = RemCons # type: ignore
+
+#########################################################
+# verified terms
+
+
+# the type of contexts for the order sorted algebra
+class RemContext:
+    '''
+    The content of a RemContext cannot be modified.
+    '''
+    def __init__(self, data : Dict[str, RemSort] = {}):
+        self._data = data.copy()
+
+    @property
+    def data(self) -> Dict[str, RemSort]:
+        return self._data.copy()
+
+    def __le__(self, other) -> bool:
+        if self is other:
+            return True
+        elif isinstance(other, RemContext):
+            for key in self._data:
+                if key not in other._data or self._data[key] != other._data[key]:
+                    return False
+                
+            return True
+        
+        else:
+            return False
+    
+    def __eq__(self, other) -> bool:
+        if self is other:
+            return True
+        elif isinstance(other, RemContext):
+            return self._data == other._data
+        else:
+            return False
+        
+    def __contains__(self, idx) -> bool:
+        return idx in self._data
+
+    def __getitem__(self, idx) -> RemSort:
+        return self._data[idx]
+    
+    def __str__(self) -> str:
+
+        if len(self._data.keys()) == 0:
+            return "[]"
+        
+        res = "["
+
+        for key in self._data:
+            res += f"{key} : {self._data[key]}; "
+        return res[:-2] + "]"
+
+
+class RemVTerm:
+    def __init__(self, term : RemTerm, ctx : RemContext):
+        '''
+        The constructor does not check validity of the well-typed term.
+        '''
+        self._term = term
+        self._ctx = ctx
+
+    @staticmethod
+    def verify(term : RemTerm, ctx : RemContext = RemContext()) -> RemVTerm:
+        '''
+        Check the validity of the well-typed term in the context and return the verified term.
+        '''
+
+        if isinstance(term, RemVar):
+            if not term.var in ctx:
+                raise REM_CONSTRUCTION_Error(f"Well-typed term cannot be constructed. Variable '{term.var}' is not defined in the context.")
+
+            return RemVTerm(term, ctx)
+        
+        elif isinstance(term, RemCons):
+
+            # check the subterms
+            for i in range(term.fun.arity):
+                vt = RemVTerm.verify(term.paras[i], ctx)
+
+                if not vt.well_typed(term.fun.para_sorts[i]):
+                    raise REM_Sort_Error(term.paras[i], term.fun.para_sorts[i])
+                
+            # check the implementation of attribute prescriptions. note that extra Rem terms are check w.r.t. the same context
+            term.fun.domain_sort.attr_pres_check(term, ctx)
+
+            return RemVTerm(term, ctx)
+        
+        else:
+            raise Exception()
+
+        
+    
+    @property
+    def term(self) -> RemTerm:
+        return self._term
+    
+    @property
+    def ctx(self) -> RemContext:
+        return self._ctx
+    
+    @property
+    def sort(self) -> RemSort:
+        if isinstance(self._term, RemVar):
+            return self._ctx[self._term.var]
+        elif isinstance(self._term, RemCons):
+            return self._term.fun.domain_sort
+        else:
+            raise Exception()
+        
+
+    def well_typed(self, sort: RemSort) -> bool:
+        '''
+        only verified terms can check the well-typed proof
+        '''
+        return sort in self.sort.upstream_nodes
+    
+    def __getattribute__(self, __name: str) -> Any:
+        '''
+        The attributes of the verified term can be directly accessed.
+        '''
+        try:
+            return object.__getattribute__(self, __name)
+        except AttributeError:
+            return object.__getattribute__(self._term, __name)
+    
+    def __str__(self) -> str:
+        return str(self.term)
+    
+    def full_str(self) -> str:
+        return f"{self.ctx} ⊢ {self.term} : {self.sort}"
+
+
+
+#########################################################
+# substitutions
+
+T_sub = TypeVar("T_sub", "RemSubst", RemTerm)
+
+class RemSubst:
+    def __init__(self, data : Dict[str, RemTerm]):
+        self._data = data.copy()
+
+    def copy(self) -> RemSubst:
+        return RemSubst(self._data)
+
+    @property
+    def data(self) -> Dict[str, RemTerm]:
+        return self._data.copy()
+
+    def __call__(self, term : T_sub) -> T_sub:
+        '''
+        Apply the substitution on a term. Return the result.
+        '''
+        if isinstance(term, RemTerm):
+            return term.substitute(self)
+        elif isinstance(term, RemSubst):
+            return self.composite(term)
+        else:
+            raise REM_META_Error("Invalid application of substitution.")
+    
+    def __contains__(self, idx) -> bool:
+        return idx in self._data
+
+    def __getitem__(self, idx) -> RemTerm:
+        return self._data[idx]
+    
+    def __str__(self):
+        if len(self._data.keys()) == 0:
+            return "{}"
+        
+        res = "{"
+        for key in self._data:
+            res += f"{key} ↦ {self._data[key]}, "
+        return res[:-2] + "}"
+    
+
+    ################################################
+    # universal algebra methods
+    
+    @property
+    def domain(self) -> set[str]:
+        return set(self._data.keys())
+
+    @property
+    def range(self) -> set[RemTerm]:
+        return set(self._data.values())
+    
+    @property
+    def vrange(self) -> set[str]:
+        res = set()
+        for rhs in self._data.values():
+            res |= rhs.variables()
+        return res
+    
+    def composite(self, other : RemSubst) -> RemSubst:
+        '''
+        return the composition `self(other)`.
+        '''
+        new_data = {}
+
+        for var in other.domain:
+            new_data[var] = other[var].substitute(self)
+
+        for var in self.domain - other.domain:
+            new_data[var] = self[var]
+
+        return RemSubst(new_data)
+    
+    @property
+    def idempotent(self) -> bool:
+        '''
+        A substitution σ is idempotent if σ = σσ.
+        '''
+        # This is the equivalent condition for idempotent
+        return len(self.domain & self.vrange) == 0

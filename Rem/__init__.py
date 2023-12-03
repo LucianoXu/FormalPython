@@ -10,7 +10,7 @@ from .syn import PLYLexer
 from .syn import PLYParser
 from .syn import type_match
 
-from .rem import RemSort, RemFun, RemTerm, RemVar, RemCons, RemContext, RemSubst
+from .rem import RemSort, RemFun, RemTerm, RemVar, RemCons, RemContext, RemVTerm, RemSubst
 
 from .stdlib import *
 
