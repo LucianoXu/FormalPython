@@ -135,13 +135,13 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
         self.doc : str | None = None
 
         # The extra check on term attributes. Reassign to redefine.
-        self.attr_extra_check : Callable[[RemTerm, RemContext], None] | None = None
+        self.attr_extra_check : Callable[[RemTerm], None] | None = None
 
 
     #######################################################
     # sort check - checking for valid terms of this sort
 
-    def attr_pres_check(self, term : RemTerm, ctx : RemContext):
+    def attr_pres_check(self, term : RemTerm):
         '''
         Checks that the term implements the attribute prescription of this sort.
         '''
@@ -150,14 +150,16 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
             if attr not in term.__dict__:
                 raise REM_META_Error(f"The term '{term}' does not implement the attribute prescription of '{self}':\n\nThe attribute '{attr}' is not defined.")
             
-            if isinstance(term.__dict__[attr], RemTerm):
-                term.__dict__[attr].well_typed_check(self.__attr_pres[attr], ctx)
+            if isinstance(self.__attr_pres[attr], RemSort):
+                self.type_check(term.__dict__[attr], RemTerm, attr)
+                if not term.__dict__[attr].well_typed(self.__attr_pres[attr]):
+                    raise REM_Sort_Error(term.__dict__[attr], self.__attr_pres[attr])
             else:
                 self.type_check(term.__dict__[attr], self.__attr_pres[attr], attr)
 
         # sort's extra check
         if self.attr_extra_check is not None:
-            self.attr_extra_check(term, ctx)
+            self.attr_extra_check(term)
 
     ########################################################
     # pretty printing
@@ -240,10 +242,20 @@ class RemContext:
 class RemTerm(RemObject):
     '''
     A term in the signature, including:
-        - RemTyping (well-typed term)
         - RemVar (variable)
         - RemCons (function symbol)
     '''
+    def __init__(self):
+        self._ctx : None | RemContext = None
+
+    @property
+    def ctx(self) -> None | RemContext:
+        return self._ctx
+    
+    @property
+    def sort(self) -> None | RemSort:
+        raise NotImplementedError()
+
     ############################################################
     # These two magic methods erase the type error for getting and setting attributes.
     def __setattr__(self, __name: str, __value: Any) -> None:
@@ -253,23 +265,19 @@ class RemTerm(RemObject):
         return super().__getattribute__(__name)
     ############################################################
 
-        
-    def well_typed_decide(self, sort : RemSort, ctx : RemContext = RemContext()) -> bool:
-        '''
-        Decide whether this term is well-typed with the specified sort.
-        The judgement depends on the calculated reflexive, transitive closure of super sorts.
-        '''
-        raise NotImplementedError()
-    
-    def well_typed_check(self, sort : RemSort, ctx : RemContext = RemContext()):
-        '''
-        Check that the term is well typed. 
-        Raise construction error otherwise.
-        '''
-        raise NotImplementedError()
 
-        
-    def verify(self, ctx : RemContext = RemContext()) -> RemTyping:
+    def well_typed(self, sort: RemSort) -> bool:
+        '''
+        only verified terms can check the well-typed proof
+        '''
+        if self._ctx is None:
+            raise REM_CONSTRUCTION_Error(f"The term {self} is not verified with some context and cannot check its sort.")
+
+        assert self.sort is not None
+        return sort in self.sort.upstream_nodes
+
+
+    def verify(self, ctx : RemContext = RemContext()) -> RemTerm:
         '''
         Construct the well-typed term in the specified context.
         '''
@@ -307,67 +315,27 @@ class RemTerm(RemObject):
 
 
         return dot
-    
-
-    
-class RemTyping(RemTerm):
-    '''
-    This is universal for all different kinds of RemSort/Terms
-    '''
-
-    def __init__(self, ctx : RemContext, term : RemVar | RemCons):
-        '''
-        Construct the well-typed term in the specified context.
-        '''
-
-        self._term : RemVar | RemCons = term
-        self._ctx  : RemContext = ctx
-    
-    def well_typed_check(self, sort: RemSort, ctx: RemContext = RemContext()):
-        if not (sort in self.sort.upstream_nodes and self._ctx <= ctx):
-            raise REM_Sort_Error(self, sort)
-
-    def verify(self, ctx: RemContext = RemContext()) -> RemTyping:
-        if not self._ctx <= ctx:
-            raise REM_CONSTRUCTION_Error("Well-typed term cannot be constructed. Context is not strengthened.")
-        return RemTyping(ctx, self._term)
-
-    @property
-    def sort(self) -> RemSort:
-        if isinstance(self._term, RemVar):
-            return self._ctx[self._term.var]
-        else:
-            return self._term.fun.domain_sort
-        
-    @property
-    def graphvizID(self) -> str:
-        return self._term.graphvizID
-           
-    # use the drawing of the typed term
-    def vlayout(self, dot: Digraph, id: str, title: str):
-        self._term.vlayout(dot, id, title)
-        
-    def ast_vlayout(self, dot: Digraph):
-        self._term.ast_vlayout(dot)
-
-    def __str__(self) -> str:
-        return f"({self._term} : {self.sort})"
-
 
             
 
 class RemVar(RemTerm):
     def __init__(self, var : str):
+        super().__init__()
         self.__var = var
 
-    def well_typed_check(self, sort: RemSort, ctx: RemContext = RemContext()):
-        if not (self.__var in ctx and sort in ctx[self.__var].upstream_nodes):
-            raise REM_Sort_Error(self, sort)
-
-    def verify(self, ctx: RemContext = RemContext()) -> RemTyping:
+    def verify(self, ctx: RemContext = RemContext()) -> RemVar:
         if not self.var in ctx:
             raise REM_CONSTRUCTION_Error(f"Well-typed term cannot be constructed. Variable '{self.var}' is not defined in the context.")
-        return RemTyping(ctx, self)
+        self._ctx = ctx
+
+        return self
+
+    @property
+    def sort(self) -> RemSort | None:
+        if self._ctx is not None:
+            return self._ctx[self.__var]
+        else:
+            return None
     
     @property
     def var(self) -> str:
@@ -399,39 +367,42 @@ class RemCons(RemTerm):
     Terms from function application
     '''
     def __init__(self, fun : RemFun, paras : Tuple[RemTerm, ...]):
+        super().__init__()
         self._fun = fun
         self._paras = paras
 
-            
-            
-    def well_typed_decide(self, sort: RemSort, ctx: RemContext = RemContext()) -> bool:
-        '''
-        Assumption: no arity problem
-        '''
-        for i in range(self.fun.arity):
-            if not self._paras[i].well_typed_decide(self.fun.para_sorts[i], ctx):
-                return False
         
-        return sort in self.fun.domain_sort.upstream_nodes
-            
-    def well_typed_check(self, sort: RemSort, ctx: RemContext = RemContext()):
-        for i in range(self.fun.arity):
-            self._paras[i].well_typed_check(self.fun.para_sorts[i], ctx)
-        
-        if not sort in self.fun.domain_sort.upstream_nodes:
-            raise REM_Sort_Error(self, sort)
-        
-
-        # check the implementation of attribute prescriptions
-        self.fun.domain_sort.attr_pres_check(self, ctx)
-
-
-    def verify(self, ctx: RemContext = RemContext()) -> RemTyping:
+    def verify(self, ctx: RemContext = RemContext()) -> RemCons:
         '''
         Check the typing with the context ctx.
         '''
-        self.well_typed_check(self.fun.domain_sort, ctx)
-        return RemTyping(ctx, self)
+        if self._ctx is not None and self._ctx <= ctx:
+            # reuse of existing proofs
+            self._ctx = ctx
+            return self
+
+        else:
+            target_sort = self.fun.domain_sort
+            for i in range(self.fun.arity):
+                self._paras[i].verify(ctx)
+            
+            if not target_sort in self.fun.domain_sort.upstream_nodes:
+                raise REM_Sort_Error(self, target_sort)
+            
+            self._ctx = ctx
+
+            # check the implementation of attribute prescriptions
+            self.fun.domain_sort.attr_pres_check(self)
+
+        return self
+
+
+    @property
+    def sort(self) -> RemSort | None:
+        if self._ctx is not None:
+            return self.fun.domain_sort
+        else:
+            return None
         
         
     @property
