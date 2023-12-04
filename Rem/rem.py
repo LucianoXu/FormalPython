@@ -476,6 +476,7 @@ class RemTerm(RemObject):
         '''
         raise NotImplementedError()
     
+    
     ################################################
 
 
@@ -691,6 +692,14 @@ class RemCons(RemTerm):
         return res
         
 
+    def replace(self, i : int, subterm : RemTerm) -> RemTerm:
+        '''
+        replace the i-th parameter with the new subterm and return the result
+        '''
+        res = self.copy()
+        res._paras = res._paras[:i] + (subterm,) + res._paras[i+1:]
+        
+        return res
 
     ############################################################
 
@@ -964,6 +973,7 @@ class RemSubst:
 class RemUnification:
     '''
     A unification problem in Rem system.
+    (No type check.)
     '''
     def __init__(self, eqs : List[Tuple[RemTerm, RemTerm]]):
         self.eqs = eqs
@@ -1007,7 +1017,7 @@ class RemUnification:
         return True
     
 
-    def unify(self) -> RemSubst | None:
+    def solve(self) -> RemSubst | None:
         '''
         Reduce the problem and 
 
@@ -1088,3 +1098,74 @@ class RemUnification:
 
 
 
+class RemMatching:
+    '''
+    A matching problem in Rem system.
+    (No type check.)
+
+    Based on [Term Rewriting and All That] Sec.4.7
+    '''
+    def __init__(self, ineqs : List[Tuple[RemTerm, RemTerm]]):
+        self.ineqs = ineqs
+
+    def __str__(self) -> str:
+        if len(self.ineqs) == 0:
+            return "{}"
+        
+        res = "{"
+        for lhs, rhs in self.ineqs:
+            res += f"{lhs} ≲? {rhs}, "
+        return res[:-2] + "}"
+    
+    @property
+    def variables(self) -> set[str]:
+        res = set()
+        for lhs, rhs in self.ineqs:
+            res |= lhs.variables() | rhs.variables()
+        return res        
+    
+    def solve(self) -> RemSubst | None:
+        ineqs = self.ineqs.copy()
+
+        subst : Dict[str, RemTerm] = {}
+
+        while len(ineqs) > 0:
+            lhs, rhs = ineqs[0]
+
+            if isinstance(lhs, RemVar):
+                if lhs.var in subst.keys():
+                    if RemSubst(subst)(lhs) == rhs:
+                        ineqs = ineqs[1:]
+                        continue
+                    else:
+                        return None
+                else:
+                    subst[lhs.var] = rhs
+                    ineqs = ineqs[1:]
+                    continue
+
+            elif isinstance(lhs, RemCons):
+                if isinstance(rhs, RemVar):
+                    return None
+            
+                elif isinstance(rhs, RemCons):
+                    if lhs.fun == rhs.fun:
+                        ineqs = ineqs[1:]
+                        for i in range(lhs.fun.arity):
+                            ineqs.append((lhs.paras[i], rhs.paras[i]))
+                        continue
+
+                    else:
+                        return None
+                else:
+                    raise Exception()
+                
+            else:
+                raise Exception()
+                    
+        return RemSubst(subst)
+
+
+    @staticmethod
+    def single_match(lhs : RemTerm, rhs : RemTerm) -> RemSubst | None:
+        return RemMatching([(lhs, rhs)]).solve()

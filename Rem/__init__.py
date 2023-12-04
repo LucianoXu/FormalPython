@@ -14,3 +14,5 @@ from .rem import RemSort, RemFun, RemTerm, RemVar, RemCons, RemContext, RemVTerm
 
 from .stdlib import *
 
+from .rem_trs import *
+
