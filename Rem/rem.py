@@ -111,6 +111,8 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
 
     def __init__(self, name : str, attr_pres : Dict[str, RemSort | Type] = {}, super_sorts : Tuple[RemSort, ...] = ()):
         
+        self.__initialized = False
+
         RemNamed.__init__(self, name)
         NetworkNode.__init__(self, set())
 
@@ -129,7 +131,9 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
         if not isinstance(attr_pres, dict):
             raise REM_META_Error(f"({self.name}): The attribute prescription should be a dictionary.")
         
-        self.__attr_pres = attr_pres.copy()
+        self.__self_attr_pres = attr_pres.copy()
+        
+        self.__calc_attr_pres()
 
         self.__attr_names = tuple(self.__attr_pres.keys())
 
@@ -139,31 +143,60 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
         # The extra check on term attributes. Reassign to redefine.
         self.attr_extra_check : Callable[[RemTerm, RemContext], None] | None = None
 
+        self.__initialized = True
+
     @property
     def attr_names(self) -> Tuple[str, ...]:
         return self.__attr_names
 
+    def __calc_attr_pres(self):
 
+        # inherit all the attribute prescriptions from super sorts
+
+        all_attr_pres : Dict[str, RemSort | Type] = self.__self_attr_pres.copy()
+
+        for sort in self.upstream_nodes:
+            for attr in sort.__self_attr_pres:
+                if attr not in all_attr_pres:
+                    all_attr_pres[attr] = sort.__self_attr_pres[attr]
+                elif all_attr_pres[attr] == sort.__self_attr_pres[attr]:
+                    continue
+                else:
+                    raise REM_META_Error(f"Inconsistent extra attribute prescription: the attribute '{attr}' is already required to be '{all_attr_pres[attr]}', but still required to be '{sort.__self_attr_pres[attr]}' in '{sort}'.")
+                    
+        self.__attr_pres = all_attr_pres
+
+    def set_super_node(self, super_node: Any):
+        # TODO #3 change the super should triger recalculation of attribute prescriptions. But there are still bugs on this case when the situation is complicated.
+        super().set_super_node(super_node)
+
+        if self.__initialized:
+            self.__calc_attr_pres()
 
     #######################################################
     # sort check - checking for valid terms of this sort
 
-    def attr_pres_check(self, term : RemTerm, ctx : RemContext):
+    def attr_pres_check(self, term : RemCons, ctx : RemContext):
         '''
         Checks that the term implements the attribute prescription of this sort.
         '''
 
         for attr in self.__attr_pres:
-            if attr not in term.__dict__:
-                raise REM_META_Error(f"The term '{term}' does not implement the attribute prescription of '{self}':\n\nThe attribute '{attr}' is not defined.")
+
+            try:
+                attr_term = term[attr]
+
+                if isinstance(self.__attr_pres[attr], RemSort):
+                    self.type_check(attr_term, RemTerm, attr)
+                    vt = RemVTerm.verify(attr_term, ctx)
+                    if not vt.well_typed(self.__attr_pres[attr]):
+                        raise REM_Sort_Error(attr_term, self.__attr_pres[attr])
+                else:
+                    self.type_check(attr_term, self.__attr_pres[attr], attr)
+
+            except REM_CONSTRUCTION_Error:
+                raise REM_CONSTRUCTION_Error(f"The term '{term}' does not implement the attribute prescription of '{self}':\n\nThe attribute '{attr}' is not defined.")
             
-            if isinstance(self.__attr_pres[attr], RemSort):
-                self.type_check(term.__dict__[attr], RemTerm, attr)
-                vt = RemVTerm.verify(term.__dict__[attr], ctx)
-                if not vt.well_typed(self.__attr_pres[attr]):
-                    raise REM_Sort_Error(term.__dict__[attr], self.__attr_pres[attr])
-            else:
-                self.type_check(term.__dict__[attr], self.__attr_pres[attr], attr)
 
         # sort's extra check
         if self.attr_extra_check is not None:
@@ -204,6 +237,9 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
             fontname = "Consolas",
             labeljust="l")
         
+
+# the type hint for extract functions
+ExtractFun = Callable[["RemCons"], object]
 
 class RemFun(RemNamed, Generic[T_Cons]):
     '''
@@ -264,6 +300,10 @@ class RemFun(RemNamed, Generic[T_Cons]):
         # the function specific term printing. high priority. reassign to modify
         self.term_str : Callable[[RemCons], str] | None = None
 
+        # the functions to extract the corresponding attribute
+        # it will be invocated in the __getitem__ of RemCons instances, when a string index is passed in
+        self.attr_extract : Dict[str, ExtractFun] = {}
+
 
     @property
     def arity(self) -> int:
@@ -317,8 +357,8 @@ class RemFun(RemNamed, Generic[T_Cons]):
             else:
                 temp_paras.append(paras[i])
         paras = tuple(temp_paras)
+
         
-        term : T_Cons = self.term_type(self, paras)
 
         # check for parameters
         if len(paras) != self.arity:
@@ -327,20 +367,26 @@ class RemFun(RemNamed, Generic[T_Cons]):
         for i in range(self.arity):
             self.type_check(paras[i], RemTerm, self.__para_doc[i])
         
-        # check for extra parameters        
+        # check and add extra parameters        
+        extra_attrs = {}
         if self.extra_para_types is not None:
             for para in self.extra_para_types:
-                if para not in kwparas:
-                    raise REM_CONSTRUCTION_Error(f"({self.name}): The extra parameter '{para}' is missing.")
-                para_val = kwparas[para]
-                self.type_check(kwparas[para], self.extra_para_types[para], self.__extra_para_doc[para])
+                if para in self.attr_extract:
+                    continue
+                elif para in kwparas:
+                    para_val = kwparas[para]
+                    self.type_check(kwparas[para], self.extra_para_types[para], self.__extra_para_doc[para])
 
-                # assign the extra para
-                setattr(term, para, para_val)
+                    # assign the extra para
+                    extra_attrs[para] = para_val
+                else:
+                    raise REM_CONSTRUCTION_Error(f"({self.name}): The extra parameter '{para}' is missing.")
 
         
         # extra check for parameters    
         self.extra_check(self, *paras, **kwparas)
+
+        term : T_Cons = self.term_type(self, paras, extra_attrs)
 
         #  modification
         self.modify(term, *paras, **kwparas)
@@ -432,15 +478,6 @@ class RemTerm(RemObject):
         - RemCons (function symbol)
     '''
 
-    ############################################################
-    # These two magic methods erase the type error for getting and setting attributes.
-    def __setattr__(self, __name: str, __value: Any) -> None:
-        return super().__setattr__(__name, __value)
-    
-    def __getattribute__(self, __name: str) -> Any:
-        return super().__getattribute__(__name)
-    ############################################################
-
     ################################################
     # universal algebra methods
     
@@ -479,6 +516,11 @@ class RemTerm(RemObject):
     
     ################################################
 
+    def __getitem__(self, i : int | str) -> Any:
+        '''
+        This syntax sugar imitate the positioning in universal algebra
+        '''
+        raise REM_CONSTRUCTION_Error(f"Cannot access the attributes of term '{self}'.")
 
 
     ########################################
@@ -521,13 +563,6 @@ class RemTerm(RemObject):
 class RemVar(RemTerm):
     def __init__(self, var : str):
         self.__var = var
-
-    @property
-    def sort(self) -> RemSort | None:
-        if self._ctx is not None:
-            return self._ctx[self.__var]
-        else:
-            return None
     
     @property
     def var(self) -> str:
@@ -587,12 +622,13 @@ class RemCons(RemTerm):
     '''
     Terms from function application
     '''
-    def __init__(self, fun : RemFun, paras : Tuple[RemTerm, ...]):
+    def __init__(self, fun : RemFun, paras : Tuple[RemTerm, ...], extra_attrs : Dict[str, Any]):
         '''
         This constructor should not be invocated manually.
         '''
         self._fun = fun
         self._paras = paras
+        self._extra_attrs = extra_attrs.copy()
 
     def copy(self) -> RemCons:
         return copy.copy(self)
@@ -602,17 +638,8 @@ class RemCons(RemTerm):
         return self.fun.domain_sort.attr_names
     
     @property
-    def extr_attrs(self) -> tuple:
-        return tuple([getattr(self, name) for name in self.sort_attr_name])
-
-        
-
-    @property
-    def sort(self) -> RemSort | None:
-        if self._ctx is not None:
-            return self.fun.domain_sort
-        else:
-            return None
+    def extra_attrs(self) -> tuple:
+        return tuple([self[name] for name in self.sort_attr_name])
         
         
     @property
@@ -623,17 +650,32 @@ class RemCons(RemTerm):
     def paras(self) -> Tuple[RemTerm, ...]:
         return self._paras
     
-    def __getitem__(self, i) -> RemTerm:
+    def __getitem__(self, i : int | str) -> Any:
         '''
         This syntax sugar imitate the positioning in universal algebra
         '''
-        return self._paras[i]
+        if isinstance(i, int):
+            return self._paras[i]
+        
+        # resort to parameter naming from the function symbol
+        elif isinstance(i, str):
+            if i in self.fun.attr_extract:
+                return self.fun.attr_extract[i](self)
+
+            elif i in self._extra_attrs:
+                return self._extra_attrs[i]
+                
+            else:
+                raise REM_CONSTRUCTION_Error(f"The attribute of name '{i}' does not exist for function '{self.fun}'.")
+        
+        else:
+            raise Exception()
     
     def __eq__(self, __value: object) -> bool:
         if __value is self:
             return True
         elif isinstance(__value, RemCons):
-            return __value._fun == self._fun and __value._paras == self._paras and __value.extr_attrs == self.extr_attrs
+            return __value._fun == self._fun and __value._paras == self._paras and __value.extra_attrs == self.extra_attrs
         else:
             return False
         
@@ -674,7 +716,7 @@ class RemCons(RemTerm):
     
     def substitute(self, sigma: RemSubst) -> RemCons:
         '''
-        The extra attributes are substituted as well
+        The extra attributes will not be substituted.
         '''
         res = self.copy()
 
@@ -683,11 +725,6 @@ class RemCons(RemTerm):
             new_paras.append(res._paras[i].substitute(sigma))
 
         res._paras = tuple(new_paras)
-
-        for name in res.sort_attr_name:
-            sort_attr = getattr(res, name)
-            if isinstance(sort_attr, RemTerm):
-                setattr(res, name, sort_attr.substitute(sigma))
 
         return res
         
