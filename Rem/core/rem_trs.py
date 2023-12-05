@@ -8,7 +8,7 @@ from typing import Union
 
 from .rem import *
 
-from .stdlib.rem_module import *
+from .rem_module import *
 
 '''
 The type for a side condition.

@@ -4,8 +4,8 @@ from __future__ import annotations
 from typing import List, Tuple
 
 from graphviz import Digraph
-from ..rem_error import REM_META_Error, REM_CONSTRUCTION_Error
-from ..rem import RemSort, RemFun, RemTerm, RemVar, RemCons
+from .rem_error import REM_META_Error, REM_CONSTRUCTION_Error
+from .rem import RemSort, RemFun, RemTerm, RemVar, RemCons
 
 class ProofSort(RemSort):
     '''

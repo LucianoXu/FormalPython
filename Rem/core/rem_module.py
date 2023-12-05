@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from ..rem import *
+from .rem import *
 
-from ..network import Network
+from .network import Network
 
 from graphviz import unflatten
 

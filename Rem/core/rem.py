@@ -290,7 +290,7 @@ class RemFun(RemNamed, Generic[T_Cons]):
         self.domain_sort   : RemSort = domain_sort
 
         # the precedence of this term. applied in parsing and printing
-        self.precedence : None | Tuple[str, int, str] = None
+        self.precedence : None | Tuple[int, str] = None
 
         # the documentation attributes
         self.doc : str | None = None
@@ -333,8 +333,8 @@ class RemFun(RemNamed, Generic[T_Cons]):
     ############################################################
     # parser setting
 
-    def set_precedence(self, symbol: str, prec: int, assoc: str):
-        self.precedence = (symbol, prec, assoc)
+    def set_precedence(self, prec: int, assoc: str):
+        self.precedence = (prec, assoc)
     
 
     ############################################################
@@ -440,14 +440,14 @@ class RemFun(RemNamed, Generic[T_Cons]):
 
         if super_fun.precedence is None or term.fun.precedence is None:
             return str(term)
-        elif super_fun.precedence[1] > term.fun.precedence[1]:
+        elif super_fun.precedence[0] > term.fun.precedence[0]:
             return term.fun.enclosed(str(term))
-        elif super_fun.precedence[1] < term.fun.precedence[1]:
+        elif super_fun.precedence[0] < term.fun.precedence[0]:
             return str(term)
         else:
             # equal precedence
-            if (term.fun.precedence[2] == 'left' and left == False)\
-            or (term.fun.precedence[2] == 'right' and left == True):
+            if (term.fun.precedence[1] == 'left' and left == False)\
+            or (term.fun.precedence[1] == 'right' and left == True):
                 return term.fun.enclosed(str(term))
             else:
                 return str(term)
@@ -477,6 +477,9 @@ class RemTerm(RemObject):
         - RemVar (variable)
         - RemCons (function symbol)
     '''
+
+    def __setattr__(self, __name: str, __value: Any) -> None:
+        return super().__setattr__(__name, __value)
 
     ################################################
     # universal algebra methods
@@ -670,6 +673,9 @@ class RemCons(RemTerm):
         
         else:
             raise Exception()
+        
+    def __setitem__(self, i : str, value):
+        self._extra_attrs[i] = value
     
     def __eq__(self, __value: object) -> bool:
         if __value is self:
@@ -905,6 +911,9 @@ class RemVTerm:
         only verified terms can check the well-typed proof
         '''
         return sort in self.sort.upstream_nodes
+    
+    def __getitem__(self, i) -> Any:
+        return self._term[i]
     
     def __getattribute__(self, __name: str) -> Any:
         '''
