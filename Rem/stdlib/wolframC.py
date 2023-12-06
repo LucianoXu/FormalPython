@@ -48,7 +48,7 @@ def F_wolcomp_zero_factory(WolComp : RemSort) -> RemFun:
     F.term_str = term_str
     
     def modify(term : RemCons, *paras, **kwparas):
-        term["term"] = wlexpr(0)
+        term["term"] = wlexpr("0")
 
     F.modify = modify
     return F
@@ -64,7 +64,7 @@ def F_wolcomp_one_factory(WolComp : RemSort) -> RemFun:
     F.term_str = term_str
     
     def modify(term : RemCons, *paras, **kwparas):
-        term["term"] = wlexpr(1)
+        term["term"] = wlexpr("1")
 
     F.modify = modify
     return F

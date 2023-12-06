@@ -1,9 +1,9 @@
 '''
 lineal : linear algebraic lambda calculus, untyped
 '''
+from __future__ import annotations
 
 from ..core import *
-
 from types import FunctionType
 
 from . import uLC
@@ -319,26 +319,219 @@ def R_alpha_AC_eq_factory(m_lineal_syn : ModuleTerm,  P_alpha_eq : ProofSort) ->
 
     return R
 
+
+###################################################
+# TRS 
+
+def TRS_factory(lineal_syn : ModuleTerm) -> RemTRS:
+    m_WolComp = lineal_syn["M_WolComp"]
+    F_var = lineal_syn["F_var"]
+    F_apply = lineal_syn["F_apply"]
+    F_abstract = lineal_syn["F_abstract"]
+    F_zero = lineal_syn["F_zero"]
+    F_scalar = lineal_syn["F_scalar"]
+    F_add = lineal_syn["F_add"]
+    subst = lineal_syn["subst"]
+
+
+    rule_list : List[RemRedRule] = []
+
+    ##################################################################
+    # Group E
+
+    ### ADD0
+    ADD0_L = RemRedRule(F_add("?u", F_zero()), RemVar("?u"))
+    rule_list.append(ADD0_L)
+    ADD0_R = RemRedRule(F_add(F_zero(), "?u"), RemVar("?u"))
+    rule_list.append(ADD0_R)
+
+    ### SCALAR0
+    def scalar0_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+        if m_WolComp["wolcomp_eq_fun"](matcher["?c"], m_WolComp["F_wolcomp_zero"]()):
+            return matcher
+        else:
+            return None
+        
+    SCALAR0 = RemRedRule(F_scalar("?c", "?u"), F_zero(), "𝟬", scalar0_sidecond, "?c is 0" )
+    rule_list.append(SCALAR0)
+
+    ### SCALAR1
+    def scalar1_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+        if m_WolComp["wolcomp_eq_fun"](matcher["?c"], m_WolComp["F_wolcomp_one"]()):
+            return matcher
+        else:
+            return None
+        
+    SCALAR1 = RemRedRule(F_scalar("?c", "?u"), RemVar("?u"), "?u", scalar1_sidecond, "?c is 1" )
+    rule_list.append(SCALAR1)
+
+
+    ### SCALAR_VEC0
+    SCALAR_VEC0 = RemRedRule(F_scalar("?c", F_zero()), F_zero())
+    rule_list.append(SCALAR_VEC0)
+
+
+    ### DOUBLE_SCALAR
+    def double_scalar_RHS(matcher : RemSubst) -> RemTerm:
+        c1 = matcher["?c1"]
+        c2 = matcher["?c2"]
+        u = matcher["?u"]
+        return F_scalar(m_WolComp["F_wolcomp_mul"](c1, c2), u)
+
+    DOUBLE_SCALAR = RemRedRule(F_scalar("?c1", F_scalar("?c2", "?u")), double_scalar_RHS, "(?c1*?c2)*?u")
+    rule_list.append(DOUBLE_SCALAR)
+
+
+    ### DISTRIBUTE
+    DISTRIBUTE = RemRedRule(F_scalar("?c", F_add("?u", "?v")), F_add(F_scalar("?c", "?u"), F_scalar("?c", "?v")))
+    rule_list.append(DISTRIBUTE)
+
+
+
+    ##################################################################
+    # Group F
+
+
+    ### FAC2
+    def fac2_RHS(matcher : RemSubst) -> RemTerm:
+        c1 = matcher["?c1"]
+        c2 = matcher["?c2"]
+        u = matcher["?u"]
+        return F_scalar(m_WolComp["F_wolcomp_add"](c1, c2), u)
+
+    FAC2 = RemRedRule(F_add(F_scalar("?c1", "?u"), F_scalar("?c2", "?u")), fac2_RHS, "(?c1+?c2)*?u")
+    rule_list.append(FAC2)
+
+    ### FAC1L
+    def fac1l_RHS(matcher : RemSubst) -> RemTerm:
+        c = matcher["?c"]
+        u = matcher["?u"]
+        return F_scalar(m_WolComp["F_wolcomp_add"](c, m_WolComp["F_wolcomp_one"]()), u)
+
+    FAC1L = RemRedRule(F_add(F_scalar("?c", "?u"), "?u"), fac1l_RHS, "(?c+1)*?u")
+    rule_list.append(FAC1L)
+
+    ### FAC1R
+    def fac1r_RHS(matcher : RemSubst) -> RemTerm:
+        c = matcher["?c"]
+        u = matcher["?u"]
+        return F_scalar(m_WolComp["F_wolcomp_add"](m_WolComp["F_wolcomp_one"](), c), u)
+
+    FAC1R = RemRedRule(F_add("?u", F_scalar("?c", "?u")), fac1r_RHS, "(1+?c)*?u")
+    rule_list.append(FAC1R)
+
+    ### FAC0
+    FAC0 = RemRedRule(F_add("?u", "?u"), 
+        F_scalar(m_WolComp["F_wolcomp_add"](m_WolComp["F_wolcomp_one"](), 
+        m_WolComp["F_wolcomp_one"]()), "?u"))
+    rule_list.append(FAC0)
+
+    ######################################################
+    # Group A
+
+    ### APP_DISTR_L
+    APP_DISTR_L = RemRedRule(F_apply(F_add("?u", "?v"), "?w"), F_add(F_apply("?u", "?w"), F_apply("?v", "?w")))
+    rule_list.append(APP_DISTR_L)
+
+    ### APP_DISTR_R
+    APP_DISTR_R = RemRedRule(F_apply("?w", F_add("?u", "?v")), F_add(F_apply("?w", "?u"), F_apply("?w", "?v")))
+    rule_list.append(APP_DISTR_R)
+
+    ### APP_SCALAR_L
+    APP_SCALAR_L = RemRedRule(F_apply(F_scalar("?c", "?u"), "?v"), F_scalar("?c", F_apply("?u", "?v")))
+    rule_list.append(APP_SCALAR_L)
+
+    ### APP_SCALAR_R
+    APP_SCALAR_R = RemRedRule(F_apply("?v", F_scalar("?c", "?u")), F_scalar("?c", F_apply("?v", "?u")))
+    rule_list.append(APP_SCALAR_R)
+
+    ### APP_ZERO_L
+    APP_ZERO_L = RemRedRule(F_apply(F_zero(), "?u"), F_zero())
+    rule_list.append(APP_ZERO_L)
+
+    ### APP_ZERO_R
+    APP_ZERO_R = RemRedRule(F_apply("?u", F_zero()), F_zero())
+    rule_list.append(APP_ZERO_R)
+
+    ######################################################
+    # Group B
+    ### LINEAR_BETA
+    def linear_beta_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+        N = matcher["?N"]
+        assert isinstance(N, RemCons)
+
+        if N.fun == F_abstract or N.fun == F_var:
+            return matcher
+        else:
+            return None
+
+    def linear_beta_RHS(matcher : RemSubst) -> RemTerm:
+        x = matcher["?x"]
+        M = matcher["?M"]
+        N = matcher["?N"]
+        assert isinstance(M, RemCons) and isinstance(x, RemCons) and isinstance(N, RemCons)
+        
+        return subst(M, x, N)
+
+    LINEAR_BETA = RemRedRule(F_apply(F_abstract("?x", "?M"), "?N"), linear_beta_RHS, "?M[?N/?x]", linear_beta_sidecond, "?N is base vector")
+    rule_list.append(LINEAR_BETA)
+
+
+    return RemTRS(rule_list)
+
+
 ############################################
 # parser
 
 def Parser_factory(m_uLC : ModuleTerm, m_WolComp : ModuleTerm, lineal_syn : ModuleTerm) -> PLYParser:
 
-    Term = lineal_syn["Term"]
+
+    F_var = m_uLC["F_var"]
+    F_apply = m_uLC["F_apply"]
+    F_abstract = m_uLC["F_abstract"]
+
     F_zero = lineal_syn["F_zero"]
     F_scalar = lineal_syn["F_scalar"]
     F_add = lineal_syn["F_add"]
 
     lexer = PLYLexer("lineal")
-    lexer.fuse_append(m_uLC["parser"].bound_plylexer)
     lexer.fuse_append(m_WolComp["parser"].bound_plylexer)
+    lexer.add_normal_token("LAMBDA", r"λ|\\lambda")
+    lexer.add_normal_token("ignore", " \t")
+    lexer.add_normal_token("OPTZERO", r"𝟬|\\0")
+    lexer.add_literals({'*', '+'})
+    lexer.add_literals({'(', ')'})
+    lexer.add_literals({'.'})    
+    lexer.add_ID_token()
 
     parser = PLYParser(lexer, "lineal", "lineal")
-    parser.fuse_append(m_uLC["parser"])
     parser.fuse_append(m_WolComp["parser"])
 
-    lexer.add_literals({'*', '+'})
-    lexer.add_normal_token("OPTZERO", r"𝟬|\\0")
+
+    def p_rule_uLC_term(p):
+        '''
+        lineal-term : '(' lineal-term ')'
+                    | ID
+                    | LAMBDA ID '.' lineal-term
+                    | lineal-term lineal-term %prec APPLY
+        '''
+        if type_match(p, ('(', 'lineal-term', ')')):
+            p[0] = p[2]
+        elif type_match(p, ('ID',)):
+            p[0] = F_var(name=p[1])
+        elif type_match(p, ('LAMBDA', 'ID', '.', 'lineal-term')):
+            p[0] = F_abstract(F_var(name=p[2]), p[4])
+        elif type_match(p, ('lineal-term', 'lineal-term')):
+            p[0] = F_apply(p[1], p[2])
+        else:
+            raise Exception()
+    parser.set_precedence('.', 50, 'right')
+    parser.set_precedence("APPLY", 40, "left") # TODO #20 this seesm not working.
+    parser.add_rule(p_rule_uLC_term)
+
+
+    ###################################
+    # 
 
     def p_rule_optzero(p):
         '''
@@ -364,8 +557,6 @@ def Parser_factory(m_uLC : ModuleTerm, m_WolComp : ModuleTerm, lineal_syn : Modu
     parser.add_rule(p_rule_add)
 
     parser.add_subterm("lineal", "lineal-term")
-    parser.add_subterm("lineal-term", "uLC-term")
-    parser.add_subterm("uLC-term", "lineal-term")
 
     return parser
 
@@ -385,6 +576,8 @@ M_lineal = ModuleSort("M_lineal",
 
         "P_eq"      : ProofSort,
         "R_eq"      : ProofFun,
+
+        "TRS"       : RemTRS,
 
         "parser"    : PLYParser,
     })
@@ -424,6 +617,8 @@ def __modify_MF_lineal(term : ModuleCons, *paras, **kwparas):
     R_alpha_AC_eq = R_alpha_AC_eq_factory(lineal_syn, P_eq)
     term["R_eq"         ] = R_alpha_AC_eq
 
+    # TRS
+    term["TRS"          ] = TRS_factory(lineal_syn)
 
     # the parser
     parser = Parser_factory(m_uLC, m_WolComp, lineal_syn)

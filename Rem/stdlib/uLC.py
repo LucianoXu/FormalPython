@@ -255,15 +255,13 @@ def R_alpha_eq_factory(uLC_syn : ModuleTerm,  P_alpha_eq : ProofSort) -> ProofFu
 ###################################################
 # TRS 
 
-# renaming needed
-
 def TRS_factory(uLC_syn : ModuleTerm) -> RemTRS:
     F_var = uLC_syn["F_var"]
     F_apply = uLC_syn["F_apply"]
     F_abstract = uLC_syn["F_abstract"]
     subst = uLC_syn["subst"]
 
-    def Beta_RHS(matcher : RemSubst) -> RemTerm:
+    def beta_RHS(matcher : RemSubst) -> RemTerm:
         x = matcher["?x"]
         M = matcher["?M"]
         N = matcher["?N"]
@@ -272,9 +270,9 @@ def TRS_factory(uLC_syn : ModuleTerm) -> RemTRS:
         return subst(M, x, N)
 
 
-    Beta = RemRedRule(F_apply(F_abstract("?x", "?M"), "?N"), Beta_RHS, "?M[?N/?x]")
+    BETA = RemRedRule(F_apply(F_abstract("?x", "?M"), "?N"), beta_RHS, "?M[?N/?x]")
 
-    return RemTRS([Beta])
+    return RemTRS([BETA])
 
 
 ###################################################
