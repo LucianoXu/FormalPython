@@ -135,8 +135,6 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
         
         self.__calc_attr_pres()
 
-        self.__attr_names = tuple(self.__attr_pres.keys())
-
         # the documentation attribute
         self.doc : str | None = None
 
@@ -147,7 +145,7 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
 
     @property
     def attr_names(self) -> Tuple[str, ...]:
-        return self.__attr_names
+        return tuple(self.__attr_pres.keys())
 
     def __calc_attr_pres(self):
 
@@ -341,7 +339,7 @@ class RemFun(RemNamed, Generic[T_Cons]):
     # common checkings
 
     
-    def __call__(self, *paras : RemTerm | str, **kwparas) -> RemCons:
+    def __call__(self, *paras : RemTerm | str, **kwparas) -> T_Cons:
         '''
         Create a `RemCons` instance with the parameters.
         It will not check sort related properties, which require a context.
@@ -681,7 +679,19 @@ class RemCons(RemTerm):
         if __value is self:
             return True
         elif isinstance(__value, RemCons):
-            return __value._fun == self._fun and __value._paras == self._paras and __value.extra_attrs == self.extra_attrs
+            if __value._fun == self._fun and __value._paras == self._paras and __value.extra_attrs == self.extra_attrs:
+
+                # the extracted attributes should be identical too
+                for attr in self.fun.attr_extract:
+                    if self[attr] != __value[attr]:
+                        return False
+                return True
+            
+            else:
+                return False
+
+
+
         else:
             return False
         
@@ -973,6 +983,16 @@ class RemSubst:
         for key in self._data:
             res += f"{key} ↦ {self._data[key]}, "
         return res[:-2] + "}"
+    
+    def __eq__(self, other) -> bool:
+        if self is other:
+            return True
+        
+        if isinstance(other, RemSubst):
+            return self._data == other._data
+        
+        else:
+            return False
     
 
     ################################################

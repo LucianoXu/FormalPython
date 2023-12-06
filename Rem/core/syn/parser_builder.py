@@ -540,18 +540,25 @@ class PLYParser:
         assert self.__build_data is not None
         return self.__build_data
     
+    def build(self):
+        '''
+        This method can be called to try compiling the parser before using.
+        '''
+        self.__parser = yacc.yacc(
+            module=self.build_data, 
+            check_recursion= False, write_tables=False)
+    
     @property
-    def parser(self):
+    def parser(self) -> yacc.LRParser:
 
         if self.__parser is None:
 
             #########################
             # BUILD PARSER
 
-            self.__parser = yacc.yacc(
-                module=self.build_data, 
-                check_recursion= False, write_tables=False)
-            
+            self.build()
+            assert self.__parser is not None
+
         return self.__parser
     
     # interface

@@ -6,36 +6,56 @@ from __future__ import annotations
 
 from typing import Union
 
+from types import FunctionType
+
 from .rem import *
 
 from .rem_module import *
 
 '''
 The type for a side condition.
-- Parameters: reduction rule, matched term, unifier, module environment (can be empty)
+- Parameters: matcher, module environment (can be empty)
 - return : 
-    - RemSubst : accept with new unifier.
+    - RemSubst : accept with new matcher.
     - None : reject.
 '''
-SideCond = Callable[["RemRedRule", RemTerm, RemSubst, Union[RemVTerm, None]], Union[RemSubst, None]]
+
+SideCond = Callable[[RemSubst, Union[RemVTerm, None]], Union[RemSubst, None]]
+
+
+# a function to calculate the right hand side using the matcher
+RHSFun = Callable[[RemSubst], RemTerm]
 
 
 class RemRedRule:
-    def __init__(self, lhs : RemTerm, rhs : RemTerm, side_cond : SideCond | None = None, side_cond_doc : str = "<side cond>"):
+    def __init__(self, lhs : RemTerm, 
+            rhs : RemTerm | RHSFun, rhs_doc : str = "<rhs>",
+            side_cond : SideCond | None = None, side_cond_doc : str = "<side cond>"):
         REM_type_check(lhs, RemTerm)
-        REM_type_check(rhs, RemTerm)
+        REM_type_check(rhs, (RemTerm, FunctionType))
 
         self.lhs = lhs
-        self.rhs = rhs
+        self.rhs : RHSFun
+        if isinstance(rhs, RemTerm):
+            self.rhs = lambda subst : subst(rhs)
+        else:
+            self.rhs = rhs
         self.side_cond = side_cond
 
+        # the doc for RHS
+        if isinstance(self.rhs, RemTerm):
+            self.rhs_doc = str(self.rhs)
+        else:
+            self.rhs_doc = rhs_doc
+
+        # the doc for side condition
         if self.side_cond is None:
             self.side_cond_doc = ""
         else:
             self.side_cond_doc = side_cond_doc
 
     def __str__(self) -> str:
-        return f"{self.side_cond_doc} ⊢ {self.lhs} → {self.rhs}"
+        return f"{self.side_cond_doc} ⊢ {self.lhs} → {self.rhs_doc}"
 
     def rewrite(self, term : RemTerm, module : RemVTerm | None = None) -> RemTerm | None:
         '''
@@ -47,15 +67,15 @@ class RemRedRule:
             return None
         
         if self.side_cond is None:
-            return matcher(self.rhs)
+            return self.rhs(matcher)
         
         # Check side conditions.
         else:
-            new_matcher = self.side_cond(self, term, matcher, module)
+            new_matcher = self.side_cond(matcher, module)
             if new_matcher is None:
                 return None
             else:
-                return new_matcher(self.rhs)
+                return self.rhs(new_matcher)
 
 class RemTRS:
     '''
@@ -77,7 +97,7 @@ class RemTRS:
         self.module_sort = module_sort
 
 
-    def rewrite(self, term : RemTerm, module : RemVTerm | None = None) -> RemTerm | None:
+    def reduce(self, term : RemTerm, module : RemVTerm | None = None) -> RemTerm | None:
 
         # Check the module environment
         if self.module_sort is not None:
@@ -90,7 +110,7 @@ class RemTRS:
         # invocate the verification-free algorithm
         return self.__rewrite_iter(term, module)
     
-    def rewrites(self, term : RemTerm, module : RemVTerm | None = None) -> RemTerm:
+    def reduces(self, term : RemTerm, module : RemVTerm | None = None) -> RemTerm:
 
         # Check the module environment
         if self.module_sort is not None:
@@ -126,7 +146,7 @@ class RemTRS:
         elif isinstance(term, RemCons):
             # check the parameters
             for i in range(term.fun.arity):
-                new_term = self.rewrite(term[i], module)
+                new_term = self.reduce(term[i], module)
                 if new_term is not None:
                     return term.replace(i, new_term)
                 
