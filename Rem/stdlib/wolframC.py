@@ -171,7 +171,7 @@ def R_wolcomp_eq_factory(WolComp : RemSort, P_wolcomp_eq : ProofSort) -> ProofFu
 # parser
 
 def Parser_factory(F_wolcode : RemFun) -> PLYParser:
-    lexer = PLYLexer("wolcode")
+    lexer = PLYLexer("wolcomp")
     lexer.add_normal_token("ignore", " \t")
 
     def t_WOLFRAM_CODE(t):
@@ -181,15 +181,16 @@ def Parser_factory(F_wolcode : RemFun) -> PLYParser:
 
     lexer.add_normal_token("WOLFRAM_CODE", t_WOLFRAM_CODE)
 
-    parser = PLYParser(lexer, "wolcode", "wolcode")
+    parser = PLYParser(lexer, "wolcomp", "wolcomp")
 
     def p_rule(p):
         '''
-        wolcode    : WOLFRAM_CODE
+        wolcomp-term    : WOLFRAM_CODE
         '''
         p[0] = F_wolcode(code = p[1])
 
     parser.add_rule(p_rule)
+    parser.add_subterm("wolcomp", "wolcomp-term")
 
     return parser
 

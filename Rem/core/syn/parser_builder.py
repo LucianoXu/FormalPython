@@ -385,7 +385,7 @@ class PLYParser:
         self.__build_data : PLYParser.BuildData | None = None
 
     @property
-    def plylexer_bound(self) -> PLYLexer:
+    def bound_plylexer(self) -> PLYLexer:
         return self.__plylexer
     
     @property
@@ -524,7 +524,7 @@ class PLYParser:
                 setattr(self.__build_data, f"p_rule{i}", self.rule_stack[i])
 
             # set the token
-            self.__build_data.tokens = self.plylexer_bound.build_data.tokens
+            self.__build_data.tokens = self.bound_plylexer.build_data.tokens
 
             # set the start symbol
             self.__build_data.start = self.__start_symbol
@@ -563,7 +563,7 @@ class PLYParser:
     
     # interface
     def __call__(self, raw : str):
-        return self.parser.parse(raw, lexer = self.plylexer_bound.lexer)
+        return self.parser.parse(raw, lexer = self.bound_plylexer.lexer)
     
     # fusion
     def fuse_append(self, other : PLYParser) -> None:

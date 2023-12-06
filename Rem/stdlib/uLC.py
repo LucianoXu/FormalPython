@@ -12,7 +12,7 @@ from types import FunctionType
 # term
 
 def S_Term_factory() -> RemSort:
-    return RemSort("Term")
+    return RemSort("uLC-Term")
 
 
 ##############################
