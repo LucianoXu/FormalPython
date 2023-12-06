@@ -105,8 +105,8 @@ M_uLC_syn = ModuleSort("M_uLC_syn",
     })
 
 
-MF_uLC_syn = ModuleFun("F_uLC_syn", (), M_uLC_syn)
-def __modify_F_uLC_syn(term : ModuleCons, *paras, **kwparas):
+MF_uLC_syn = ModuleFun("MF_uLC_syn", (), M_uLC_syn)
+def __modify_MF_uLC_syn(term : ModuleCons, *paras, **kwparas):
 
     Term = S_Term_factory()
     term["Term"] = Term
@@ -178,14 +178,14 @@ def __modify_F_uLC_syn(term : ModuleCons, *paras, **kwparas):
     term["freshvar"] = freshvar
 
 
-MF_uLC_syn.modify = __modify_F_uLC_syn
+MF_uLC_syn.modify = __modify_MF_uLC_syn
 
 
 ###################################
 # alpha-equivalence
 
 def P_alpha_eq_factory(Term : RemSort) -> ProofSort:
-    P = ProofSort("alpha_eq", {"t1" : Term, "t2" : Term})
+    P = ProofSort("P_alpha_eq", {"t1" : Term, "t2" : Term})
 
     def term_str(term : RemCons):
         return f"{term['t1']} = {term['t2']}"
@@ -204,7 +204,7 @@ def R_alpha_eq_factory(uLC_syn : ModuleTerm,  P_alpha_eq : ProofSort) -> ProofFu
     freshvar = uLC_syn["freshvar"]
 
 
-    R = ProofFun("R_alpha_eq", (Term, Term), P_alpha_eq)
+    R = ProofFun("R_uLC_alpha_eq", (Term, Term), P_alpha_eq)
 
     R.rule_doc = " (automatic check) ⊢ t1 = t2"
     R.set_para_doc("t1", "t2")
@@ -221,13 +221,13 @@ def R_alpha_eq_factory(uLC_syn : ModuleTerm,  P_alpha_eq : ProofSort) -> ProofFu
                     else:
                         raise REM_CONSTRUCTION_Error("Variable not identical.")
                 
-                if t1.fun == F_apply:
+                elif t1.fun == F_apply:
                     R(t1["M"], t2["M"])
                     R(t1["N"], t2["N"])
                     return
                 
                 # alpha-conversion comes in
-                if t1.fun == F_abstract:
+                elif t1.fun == F_abstract:
                     t1M = t1["M"]
                     t2M = t2["M"]
                     vset = vars_of(t1M) | vars_of(t2M)
@@ -339,10 +339,11 @@ M_uLC = ModuleSort("M_uLC",
     })
 
 
-MF_uLC = ModuleFun("MF_uLC", (), M_uLC)
+MF_uLC = ModuleFun("MF_uLC", (M_uLC_syn,), M_uLC)
+MF_uLC.set_para_doc("syn")
 def __modify_MF_uLC(term : ModuleCons, *paras, **kwparas):
 
-    uLC_syn = MF_uLC_syn()
+    uLC_syn = paras[0]
 
     term["Term"] = uLC_syn["Term"]
     term["Var"] = uLC_syn["Var"]
@@ -359,6 +360,8 @@ def __modify_MF_uLC(term : ModuleCons, *paras, **kwparas):
     uLC_TRS = TRS_factory(uLC_syn)
     term["TRS"] = uLC_TRS
 
+    # the parser
+
     parser = Parser_factory(uLC_syn)
     parser.build()
     term["parser"] = parser
@@ -370,7 +373,7 @@ def build() -> RemVTerm:
     '''
     build and verify the system
     '''
-    return RemVTerm.verify(MF_uLC())
+    return RemVTerm.verify(MF_uLC(MF_uLC_syn()))
 
 
 
