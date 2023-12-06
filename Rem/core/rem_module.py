@@ -33,8 +33,8 @@ class ModuleCons(ModuleTerm, RemCons):
         Return the direct Rem objects. (not recursive in submodule)
         '''
         res = set()
-        for attr_id in vars(self):
-            attr = getattr(self, attr_id)
+        for attr_id in self.sort_attr_name:
+            attr = self[attr_id]
             if isinstance(attr, RemObject) and attr is not self._fun:
                 res.add(attr)
         return res

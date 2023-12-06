@@ -68,7 +68,7 @@ def F_apply_factory(Term : RemSort) -> RemFun:
     F.attr_extract["M"] = lambda term : term.paras[0]
     F.attr_extract["N"] = lambda term : term.paras[1]
 
-    F.set_precedence(40, 'right')
+    F.set_precedence(40, 'left')
 
     def term_str(term : RemCons):
         return f"{term['M'].ctx_term_str(term.fun, True)} {term['N'].ctx_term_str(term.fun, False)}"
@@ -131,7 +131,7 @@ def __modify_F_uLC_syn(term : ModuleCons, *paras, **kwparas):
         if term.fun == F_var:
             return {term["name"]}
         elif term.fun == F_abstract:
-            return {term["x"]} | vars(term["M"])
+            return {term["x"]} | vars_of(term["M"])
         elif term.fun == F_apply:
             return vars_of(term["M"]) | vars_of(term["N"])
         else:
@@ -293,7 +293,7 @@ def Parser_factory(uLC_syn : ModuleTerm) -> PLYParser:
     F_abstract = uLC_syn["F_abstract"]
 
     lexer = PLYLexer("uLC")
-    lexer.add_normal_token("LAMBDA", r"λ")
+    lexer.add_normal_token("LAMBDA", r"λ|\\lambda")
     lexer.add_normal_token("ignore", " \t")
 
     lexer.add_ID_token()
@@ -321,7 +321,7 @@ def Parser_factory(uLC_syn : ModuleTerm) -> PLYParser:
 
     parser.add_rule(p_rule_term)
     parser.set_precedence('.', 50, 'right')
-    parser.set_precedence("APPLY", 40, "nonassoc")
+    parser.set_precedence("APPLY", 40, "left") # TODO #20 this seesm not working.
     parser.add_subterm("uLC", "uLC-term")
 
     return parser

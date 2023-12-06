@@ -533,7 +533,7 @@ class RemTerm(RemObject):
     def vlayout(self, dot: Digraph, id: str, title: str):
         raise NotImplementedError()
 
-    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
+    def ast_vlayout(self, dot: Digraph, traveled_id : set[str]):
         '''
         The traveled nodes will not be drawn again.
         '''
@@ -613,7 +613,7 @@ class RemVar(RemTerm):
             fontname = "Consolas",
             labeljust="l")
         
-    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
+    def ast_vlayout(self, dot: Digraph, traveled_id : set[str]):
         self.vlayout(dot, self.graphvizID, str(self))
 
             
@@ -775,17 +775,17 @@ class RemCons(RemTerm):
             fontname = "Consolas",
             labeljust="l")
         
-    def ast_vlayout(self, dot: Digraph, traveled : set[RemTerm]):
+    def ast_vlayout(self, dot: Digraph, traveled_id : set[str]):
         # function symbol as node
-        if self in traveled:
+        if self.graphvizID in traveled_id:
             return
         
-        traveled.add(self)
+        traveled_id.add(self.graphvizID)
         self._fun.vlayout(dot, self.graphvizID, str(self._fun))
 
         for i in range(len(self._paras)):
             para = self._paras[i]
-            para.ast_vlayout(dot, traveled)
+            para.ast_vlayout(dot, traveled_id)
 
             # subterm as edge
             dot.edge(self.graphvizID, para.graphvizID, label = str(i), fontname = "Consolas")
@@ -793,7 +793,7 @@ class RemCons(RemTerm):
         # append the extra parameters (if exist)
         if self._fun.extra_para_types is not None:
             for para_name in self._fun.extra_para_types:
-                para = getattr(self, para_name)
+                para = self[para_name]
                 dot.node(str(id(para)), str(para), shape = "plain", 
                 fontname = "Consolas",
                 labeljust="l")
