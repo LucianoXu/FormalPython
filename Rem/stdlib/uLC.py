@@ -41,7 +41,7 @@ def F_var_factory(Var : RemSort) -> RemFun:
 def F_abstract_factory(Term : RemSort, Var : RemSort) -> RemFun:
 
     F = RemFun("f_abstract", (Var, Term), Term)
-    F.rule_doc = " λx.M"
+    F.rule_doc = "λx.M"
     F.set_para_doc("x", "M")
     F.attr_extract["x"] = lambda term : term.paras[0]
     F.attr_extract["M"] = lambda term : term.paras[1]
@@ -208,7 +208,7 @@ def R_alpha_eq_factory(uLC_syn : ModuleTerm,  P_alpha_eq : ProofSort) -> ProofFu
     freshvar = uLC_syn["freshvar"]
 
 
-    R = ProofFun("PF_alpha_eq", (Term, Term), P_alpha_eq)
+    R = ProofFun("R_alpha_eq", (Term, Term), P_alpha_eq)
 
     R.rule_doc = " (automatic check) ⊢ t1 = t2"
     R.set_para_doc("t1", "t2")
@@ -346,8 +346,8 @@ M_uLC = ModuleSort("M_uLC",
     })
 
 
-MF_uLC = ModuleFun("F_uLC", (), M_uLC)
-def __modify_F_uLC(term : ModuleCons, *paras, **kwparas):
+MF_uLC = ModuleFun("MF_uLC", (), M_uLC)
+def __modify_MF_uLC(term : ModuleCons, *paras, **kwparas):
 
     uLC_syn = MF_uLC_syn()
 
@@ -370,7 +370,7 @@ def __modify_F_uLC(term : ModuleCons, *paras, **kwparas):
     parser.build()
     term["parser"] = parser
 
-MF_uLC.modify = __modify_F_uLC
+MF_uLC.modify = __modify_MF_uLC
 
 
 def build() -> RemVTerm:

@@ -143,6 +143,16 @@ class RemSort(NetworkNode, RemNamed[T_Cons]):
 
         self.__initialized = True
 
+        # components that can carry extra informations
+        self.__comp : Dict[str, Any] = {}
+
+    def __getitem__(self, i):
+        return self.__comp[i]
+    
+    def __setitem__(self, i, value):
+        self.__comp[i] = value
+
+
     @property
     def attr_names(self) -> Tuple[str, ...]:
         return tuple(self.__attr_pres.keys())
