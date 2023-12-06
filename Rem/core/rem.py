@@ -328,6 +328,17 @@ class RemFun(RemNamed, Generic[T_Cons]):
         if len(para_doc) != self.arity:
             raise REM_META_Error(f"({self.name}): The parameter doc has {len(para_doc)} elements, which is inconsistent with the arity {self.arity}.")
         
+        self.__para_doc = para_doc
+
+        def extrac_para_fun(i):
+            def f(term):
+                return term.paras[i]
+            return f
+
+        for i in range(self.arity):
+            para_name = para_doc[i]
+            self.attr_extract[para_name] = extrac_para_fun(i)
+        
     def set_extra_para_doc(self, **extr_para_doc : str) -> None:
         if self.extra_para_types is None:
             raise REM_META_Error(f"({self.name}): Not extra parameters.")

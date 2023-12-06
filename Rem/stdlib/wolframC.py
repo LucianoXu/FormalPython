@@ -75,8 +75,6 @@ def F_wolcomp_add_factory(WolComp : RemSort) -> RemFun:
     F.rule_doc = "c1 + c2"
 
     F.set_para_doc("c1", "c2")
-    F.attr_extract["c1"] = lambda term : term.paras[0]
-    F.attr_extract["c2"] = lambda term : term.paras[1]
 
     F.set_precedence(150, 'left')
 
@@ -96,8 +94,6 @@ def F_wolcomp_mul_factory(WolComp : RemSort) -> RemFun:
 
     F.rule_doc = "c1 * c2"
     F.set_para_doc("c1", "c2")
-    F.attr_extract["c1"] = lambda term : term.paras[0]
-    F.attr_extract["c2"] = lambda term : term.paras[1]
 
     F.set_precedence(160, 'left')
 
@@ -119,7 +115,6 @@ def F_wolcomp_conj_factory(WolComp : RemSort) -> RemFun:
     F.rule_doc = "conj(c)"
 
     F.set_para_doc("c")
-    F.attr_extract["c"] = lambda term : term.paras[0]
 
     F.set_precedence(180, 'left')
 
@@ -160,8 +155,6 @@ def R_wolcomp_eq_factory(WolComp : RemSort, P_wolcomp_eq : ProofSort) -> ProofFu
 
     R.rule_doc = " (Wolfram engine) ⊢ c1 = c2"
     R.set_para_doc("c1", "c2")
-    R.attr_extract["c1"] = lambda term : term.paras[0]
-    R.attr_extract["c2"] = lambda term : term.paras[1]
 
     eq_check = wolcomp_eq_fun_factory(WolComp)
 

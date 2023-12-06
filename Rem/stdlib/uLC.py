@@ -43,8 +43,6 @@ def F_abstract_factory(Term : RemSort, Var : RemSort) -> RemFun:
     F = RemFun("f_abstract", (Var, Term), Term)
     F.rule_doc = "λx.M"
     F.set_para_doc("x", "M")
-    F.attr_extract["x"] = lambda term : term.paras[0]
-    F.attr_extract["M"] = lambda term : term.paras[1]
 
     F.set_precedence(50, 'nonassoc')
 
@@ -65,8 +63,6 @@ def F_apply_factory(Term : RemSort) -> RemFun:
 
     F.rule_doc = "M N"
     F.set_para_doc("M", "N")
-    F.attr_extract["M"] = lambda term : term.paras[0]
-    F.attr_extract["N"] = lambda term : term.paras[1]
 
     F.set_precedence(40, 'left')
 
@@ -212,9 +208,6 @@ def R_alpha_eq_factory(uLC_syn : ModuleTerm,  P_alpha_eq : ProofSort) -> ProofFu
 
     R.rule_doc = " (automatic check) ⊢ t1 = t2"
     R.set_para_doc("t1", "t2")
-
-    R.attr_extract["t1"] = lambda term : term.paras[0]
-    R.attr_extract["t2"] = lambda term : term.paras[1]
 
     def extra_check(fun : RemFun, *paras, **kwparas):
         t1 = paras[0]
