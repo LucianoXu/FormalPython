@@ -184,8 +184,8 @@ MF_uLC_syn.modify = __modify_MF_uLC_syn
 ###################################
 # alpha-equivalence
 
-def P_alpha_eq_factory(Term : RemSort) -> ProofSort:
-    P = ProofSort("P_alpha_eq", {"t1" : Term, "t2" : Term})
+def P_eq_factory(Term : RemSort) -> ProofSort:
+    P = ProofSort("P_eq", {"t1" : Term, "t2" : Term})
 
     def term_str(term : RemCons):
         return f"{term['t1']} = {term['t2']}"
@@ -351,10 +351,10 @@ def __modify_MF_uLC(term : ModuleCons, *paras, **kwparas):
     term["F_abstract"] = uLC_syn["F_abstract"]
     term["F_apply"] = uLC_syn["F_apply"]
 
-    P_alpha_eq = P_alpha_eq_factory(uLC_syn["Term"])
-    term["P_eq"] = P_alpha_eq
+    P_eq = P_eq_factory(uLC_syn["Term"])
+    term["P_eq"] = P_eq
 
-    R_alpha_eq = R_alpha_eq_factory(uLC_syn, P_alpha_eq)
+    R_alpha_eq = R_alpha_eq_factory(uLC_syn, P_eq)
     term["R_eq"] = R_alpha_eq
 
     uLC_TRS = TRS_factory(uLC_syn)

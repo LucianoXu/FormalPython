@@ -205,7 +205,9 @@ MF_lineal_syn.modify = __modify_MF_lineal_syn
 # alpha-equivalence
 # note that `P_alpha_eq` of uLC is still applicable here
 
-def R_alpha_eq_factory(m_lineal_syn : ModuleTerm,  P_alpha_eq : ProofSort) -> ProofFun:
+
+
+def R_alpha_AC_eq_factory(m_lineal_syn : ModuleTerm,  P_alpha_eq : ProofSort) -> ProofFun:
 
     Term = m_lineal_syn["Term"]
     M_WolComp = m_lineal_syn["M_WolComp"]
@@ -222,10 +224,20 @@ def R_alpha_eq_factory(m_lineal_syn : ModuleTerm,  P_alpha_eq : ProofSort) -> Pr
     freshvar = m_lineal_syn["freshvar"]
 
 
-    R = ProofFun("R_lineal_alpha_eq", (Term, Term), P_alpha_eq)
+    R = ProofFun("R_lineal_eq", (Term, Term), P_alpha_eq)
 
     R.rule_doc = " (automatic check) ⊢ t1 = t2"
     R.set_para_doc("t1", "t2")
+
+    def __collect(term : RemCons) -> List[RemCons]:
+        '''
+        collect all terms in the addition
+        '''
+        if term.fun == F_add:
+            return __collect(term["M"]) + __collect(term["N"])
+        else:
+            return [term]
+
 
     def extra_check(fun : RemFun, *paras, **kwparas):
         t1 = paras[0]
@@ -242,8 +254,34 @@ def R_alpha_eq_factory(m_lineal_syn : ModuleTerm,  P_alpha_eq : ProofSort) -> Pr
                     return
                 
                 elif t1.fun == F_add:
-                    R(t1["M"], t2["M"])
-                    R(t1["N"], t2["N"])
+                    ################################
+                    # AC equivalence comes in here #
+                    ################################
+
+                    # collect and flatten the sequence of addition
+                    addls1 = __collect(t1)
+                    addls2 = __collect(t2)
+
+                    # check list equivalence
+                    if len(addls1) != len(addls2):
+                        raise REM_CONSTRUCTION_Error("Inequal addition sequence.")
+                    
+                    while len(addls1) > 0:
+                        head = addls1[0]
+                        matched = False
+                        for i in range(len(addls1)):
+                            try:
+                                extra_check(R, head, addls2[i])
+                                matched = True
+                                addls1 = addls1[1:]
+                                addls2 = addls2[:i] + addls2[i+1:]
+                                break
+                            except REM_CONSTRUCTION_Error:
+                                continue
+
+                        if not matched:
+                            raise REM_CONSTRUCTION_Error("Inequal addition sequence.")
+
                     return
 
                 elif t1.fun == F_var:
@@ -380,11 +418,11 @@ def __modify_MF_lineal(term : ModuleCons, *paras, **kwparas):
     #########################
     # about alpha-equivalence
 
-    P_alpha_eq = m_uLC["P_eq"]
-    term["P_eq"         ] = P_alpha_eq
+    P_eq = m_uLC["P_eq"]
+    term["P_eq"         ] = P_eq
 
-    R_alpha_eq = R_alpha_eq_factory(lineal_syn, P_alpha_eq)
-    term["R_eq"         ] = R_alpha_eq
+    R_alpha_AC_eq = R_alpha_AC_eq_factory(lineal_syn, P_eq)
+    term["R_eq"         ] = R_alpha_AC_eq
 
 
     # the parser
