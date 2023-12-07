@@ -20,6 +20,9 @@ The type for a side condition.
     - None : reject.
 '''
 
+
+LHSMatching = Callable[[RemTerm], Union[RemSubst, None]]
+
 SideCond = Callable[[RemSubst], Union[RemSubst, None]]
 
 
@@ -28,10 +31,10 @@ RHSFun = Callable[[RemSubst], RemTerm]
 
 
 class RemRedRule:
-    def __init__(self, lhs : RemTerm, 
+    def __init__(self, lhs : RemTerm | LHSMatching, 
             rhs : RemTerm | RHSFun, rhs_doc : str = "<rhs>",
             side_cond : SideCond | None = None, side_cond_doc : str = "<side cond>"):
-        REM_type_check(lhs, RemTerm)
+        REM_type_check(lhs, (RemTerm, FunctionType))
         REM_type_check(rhs, (RemTerm, FunctionType))
 
         self.lhs = lhs
@@ -57,12 +60,19 @@ class RemRedRule:
     def __str__(self) -> str:
         return f"{self.side_cond_doc} ⊢ {self.lhs} → {self.rhs_doc}"
 
-    def rewrite(self, term : RemTerm) -> RemTerm | None:
+    def rewrite(self, term : RemTerm, 
+                eq_check : Callable[[RemTerm, RemTerm], bool] = lambda a, b: a == b,
+                 eq_set : Callable[[RemTerm], List[RemTerm]] | None = None
+                 ) -> RemTerm | None:
         '''
         Match and rewrite the term.
         Return the result of rewriting. Return None if not matched.
         '''
-        matcher = RemMatching.single_match(self.lhs, term)
+        if isinstance(self.lhs, RemTerm):
+            matcher = RemMatching.single_match(self.lhs, term, eq_check, eq_set)
+        else:
+            matcher = self.lhs(term)
+
         if matcher is None:
             return None
         
@@ -83,7 +93,9 @@ class RemTRS:
 
     Note: no renaming is considered here, so the variables in rewriting rules should be always unique, for example "?x".
     '''
-    def __init__(self, rules : List[RemRedRule]):
+    def __init__(self, rules : List[RemRedRule], 
+                 eq_check : Callable[[RemTerm, RemTerm], bool] = lambda a, b: a == b,
+                 eq_set : Callable[[RemTerm], List[RemTerm]] | None = None):
         '''
         Create a term rewriting system
         '''
@@ -92,6 +104,9 @@ class RemTRS:
             REM_type_check(rule, RemRedRule)
 
         self.rules = rules.copy()
+
+        self.eq_check = eq_check
+        self.eq_set = eq_set
 
 
     def reduce(self, term : RemTerm) -> RemTerm | None:
@@ -122,7 +137,7 @@ class RemTRS:
 
         if isinstance(term, RemVar):
             for rule in self.rules:
-                new_term = rule.rewrite(term)
+                new_term = rule.rewrite(term, self.eq_check, self.eq_set)
                 if new_term is not None:
                     return new_term
                 
@@ -137,7 +152,7 @@ class RemTRS:
                 
             # check the function itself
             for rule in self.rules:
-                new_term = rule.rewrite(term)
+                new_term = rule.rewrite(term, self.eq_check, self.eq_set)
                 if new_term is not None:
                     return new_term
             

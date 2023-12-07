@@ -1211,24 +1211,48 @@ class RemMatching:
             res |= lhs.variables() | rhs.variables()
         return res        
     
-    def solve(self) -> RemSubst | None:
-        ineqs = self.ineqs.copy()
 
-        subst : Dict[str, RemTerm] = {}
+    def solve(self,
+              eq_check : Callable[[RemTerm, RemTerm], bool] = lambda a, b: a == b,
+              eq_set : Callable[[RemTerm], List[RemTerm]] | None = None
+              ) -> RemSubst | None:
+        '''
+        Solve the matching problem.
+        - `eq_check`: function to decide whether two terms are equal
+        '''
+        ineqs_noted = [ineq + (True,) for ineq in self.ineqs]
+        return RemMatching.__solve_iter(ineqs_noted, {}, eq_check, eq_set)
 
-        while len(ineqs) > 0:
-            lhs, rhs = ineqs[0]
+
+    @staticmethod
+    def __solve_iter(ineqs_noted : List[Tuple], 
+              subst : Dict[str, RemTerm] = {},
+              eq_check : Callable[[RemTerm, RemTerm], bool] = lambda a, b: a == b,
+              eq_set : Callable[[RemTerm], List[RemTerm]] | None = None
+              ) -> RemSubst | None:
+
+        subst = subst.copy()
+
+        while len(ineqs_noted) > 0:
+            lhs, rhs, can_expand = ineqs_noted[0]
+
+            # check eq_set expansion
+            if eq_set is not None and can_expand:
+                for eq_rhs in eq_set(rhs):
+                    res = RemMatching.__solve_iter([(lhs, eq_rhs, False)] + ineqs_noted[1:], subst, eq_check, eq_set)
+                    if res is not None:
+                        return res
 
             if isinstance(lhs, RemVar):
                 if lhs.var in subst.keys():
-                    if RemSubst(subst)(lhs) == rhs:
-                        ineqs = ineqs[1:]
+                    if eq_check(RemSubst(subst)(lhs), rhs):
+                        ineqs_noted = ineqs_noted[1:]
                         continue
                     else:
                         return None
                 else:
                     subst[lhs.var] = rhs
-                    ineqs = ineqs[1:]
+                    ineqs_noted = ineqs_noted[1:]
                     continue
 
             elif isinstance(lhs, RemCons):
@@ -1237,9 +1261,9 @@ class RemMatching:
             
                 elif isinstance(rhs, RemCons):
                     if lhs.fun == rhs.fun:
-                        ineqs = ineqs[1:]
+                        ineqs_noted = ineqs_noted[1:]
                         for i in range(lhs.fun.arity):
-                            ineqs.append((lhs.paras[i], rhs.paras[i]))
+                            ineqs_noted.append((lhs.paras[i], rhs.paras[i], True))
                         continue
 
                     else:
@@ -1254,5 +1278,7 @@ class RemMatching:
 
 
     @staticmethod
-    def single_match(lhs : RemTerm, rhs : RemTerm) -> RemSubst | None:
-        return RemMatching([(lhs, rhs)]).solve()
+    def single_match(lhs : RemTerm, rhs : RemTerm, 
+                     eq_check : Callable[[RemTerm, RemTerm], bool] = lambda a, b: a == b,
+                     eq_set : Callable[[RemTerm], List[RemTerm]] | None = None) -> RemSubst | None:
+        return RemMatching([(lhs, rhs)]).solve(eq_check, eq_set)

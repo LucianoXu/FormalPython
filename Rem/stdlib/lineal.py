@@ -9,6 +9,7 @@ from types import FunctionType
 from . import uLC
 from . import wolframC
 
+from itertools import permutations
 
 #########################################################
 # linear term sort
@@ -183,7 +184,7 @@ def __modify_MF_lineal_syn(term : ModuleCons, *paras, **kwparas):
                 # check whether renaming is needed
                 vars_of_N = vars_of(N)
                 if M["x"]["name"] in vars_of_N:
-                    vsets = vars_of_N | vars_of(M["M"])
+                    vsets = vars_of_N | vars_of(M["M"]) | {x["name"]}
                     newvar = freshvar(vsets)
                     newM = subst(M["M"], M["x"], newvar)
                     return F_abstract(newvar, subst(newM, x, N))
@@ -366,7 +367,36 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
             return False
         
         return True
+    
+    ############################
+    # for E-matching
 
+    def eq_check(a : RemTerm, b : RemTerm) -> bool:
+        try:
+            RemVTerm.verify(R_eq(a, b))
+            return True
+        
+        except REM_CONSTRUCTION_Error:
+            return False
+        
+
+    def __collect(term : RemCons) -> Tuple[RemTerm, ...]:
+        '''
+        collect all terms in the addition
+        '''
+        if term.fun == F_add:
+            return __collect(term["M"]) + __collect(term["N"])
+        else:
+            return (term,)
+        
+    def eq_set(a : RemTerm) -> List[RemTerm]:
+        
+            return [a]
+
+
+
+
+    #######
 
     rule_list : List[RemRedRule] = []
 
@@ -374,7 +404,7 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
     # Group C -- FullySimplify Wolfram Terms
 
     ### COMPLEX_SIMP
-    def complex_simp_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+    def complex_simp_sidecond(matcher : RemSubst) -> RemSubst | None:
         c = matcher["?c"]
         assert isinstance(c, RemCons)
         if c.fun != m_WolComp["F_wolsimp"]:
@@ -399,7 +429,7 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
     rule_list.append(ADD0_R)
 
     ### SCALAR0
-    def scalar0_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+    def scalar0_sidecond(matcher : RemSubst) -> RemSubst | None:
         if m_WolComp["wolcomp_eq_fun"](matcher["?c"], m_WolComp["F_wolcomp_zero"]()):
             return matcher
         else:
@@ -409,7 +439,7 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
     rule_list.append(SCALAR0)
 
     ### SCALAR1
-    def scalar1_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+    def scalar1_sidecond(matcher : RemSubst) -> RemSubst | None:
         if m_WolComp["wolcomp_eq_fun"](matcher["?c"], m_WolComp["F_wolcomp_one"]()):
             return matcher
         else:
@@ -444,19 +474,14 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
     ##################################################################
     # Group F
 
-
-    ### FAC2
-    def fac_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+    def fac_sidecond(matcher : RemSubst) -> RemSubst | None:
 
         if not closed_L_normal(matcher["?u"]): # type: ignore
             return None
-
-        try:
-            R_eq(matcher["?u"], matcher["?v"])
-            return matcher
         
-        except REM_CONSTRUCTION_Error:
-            return None
+        return matcher
+
+    ### FAC2
 
     def fac2_RHS(matcher : RemSubst) -> RemTerm:
         c1 = matcher["?c1"]
@@ -464,8 +489,52 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
         u = matcher["?u"]
         return F_scalar(m_WolComp["F_wolcomp_add"](c1, c2), u)
 
-    FAC2 = RemRedRule(F_add(F_scalar("?c1", "?u"), F_scalar("?c2", "?v")), fac2_RHS, "(?c1+?c2)*?u", fac_sidecond, "?u =eq ?v, ?u is L-normal")
+    FAC2 = RemRedRule(F_add(F_scalar("?c1", "?u"), F_scalar("?c2", "?u")), fac2_RHS, "", fac_sidecond)
     rule_list.append(FAC2)
+
+    ### FAC2_EXTRA
+    def fac2_extra_matching(term : RemTerm) -> RemSubst | None:
+        assert isinstance(term, RemCons)
+        add_terms = __collect(term)
+
+        for i in range(len(add_terms)):
+            term_i = add_terms[i]
+            assert isinstance(term_i, RemCons)
+
+            if term_i.fun == F_scalar:
+                for j in range(i + 1, len(add_terms)):
+                    term_j = add_terms[j]
+                    assert isinstance(term_j, RemCons)
+                    if term_j.fun == F_scalar and eq_check(term_i["M"], term_j["M"]):
+
+                        remainings = None
+                        for k in range(len(add_terms)):
+
+                            if k != i and k != j:
+                                if remainings is None:
+                                    remainings = add_terms[k]
+                                else:
+                                    remainings = F_add(remainings, add_terms[k])
+                        if remainings is None:
+                            return None
+
+                        return RemSubst({
+                            "?c1" : term_i["c"],
+                            "?c2" : term_j["c"],
+                            "?u"  : term_i["M"],
+                            "?V"  : remainings
+                        })
+
+
+    def fac2_extra_RHS(matcher : RemSubst) -> RemTerm:
+        c1 = matcher["?c1"]
+        c2 = matcher["?c2"]
+        u = matcher["?u"]
+        V = matcher["?V"]
+        return F_add(F_scalar(m_WolComp["F_wolcomp_add"](c1, c2), u), V)
+    
+    FAC2_EXTRA = RemRedRule(fac2_extra_matching, fac2_extra_RHS, "", fac_sidecond)
+    rule_list.append(FAC2_EXTRA)
 
     ### FAC1L
     def fac1l_RHS(matcher : RemSubst) -> RemTerm:
@@ -473,7 +542,7 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
         u = matcher["?u"]
         return F_scalar(m_WolComp["F_wolcomp_add"](c, m_WolComp["F_wolcomp_one"]()), u)
 
-    FAC1L = RemRedRule(F_add(F_scalar("?c", "?u"), "?v"), fac1l_RHS, "(?c+1)*?u", fac_sidecond, "?u =eq ?v, ?u is L-normal")
+    FAC1L = RemRedRule(F_add(F_scalar("?c", "?u"), "?u"), fac1l_RHS, "(?c+1)*?u", fac_sidecond)
     rule_list.append(FAC1L)
 
     ### FAC1R
@@ -482,21 +551,107 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
         u = matcher["?u"]
         return F_scalar(m_WolComp["F_wolcomp_add"](m_WolComp["F_wolcomp_one"](), c), u)
 
-    FAC1R = RemRedRule(F_add("?u", F_scalar("?c", "?v")), fac1r_RHS, "(1+?c)*?u", fac_sidecond, "?u =eq ?v, ?u is L-normal")
+    FAC1R = RemRedRule(F_add("?u", F_scalar("?c", "?u")), fac1r_RHS, "", fac_sidecond)
     rule_list.append(FAC1R)
 
+    ### FAC1_EXTRA
+    def fac1_extra_matching(term : RemTerm) -> RemSubst | None:
+        assert isinstance(term, RemCons)
+        add_terms = __collect(term)
+
+        for i in range(len(add_terms)):
+            term_i = add_terms[i]
+            assert isinstance(term_i, RemCons)
+
+            if term_i.fun == F_scalar:
+                for j in range(len(add_terms)):
+                    if j == i:
+                        continue
+
+                    term_j = add_terms[j]
+                    assert isinstance(term_j, RemCons)
+                    if eq_check(term_i["M"], term_j):
+
+                        remainings = None
+                        for k in range(len(add_terms)):
+
+                            if k != i and k != j:
+                                if remainings is None:
+                                    remainings = add_terms[k]
+                                else:
+                                    remainings = F_add(remainings, add_terms[k])
+                        if remainings is None:
+                            return None
+
+                        return RemSubst({
+                            "?c"  : term_i["c"],
+                            "?u"  : term_i["M"],
+                            "?V"  : remainings
+                        })
+
+
+    def fac1_extra_RHS(matcher : RemSubst) -> RemTerm:
+        c = matcher["?c"]
+        u = matcher["?u"]
+        V = matcher["?V"]
+        return F_add(F_scalar(m_WolComp["F_wolcomp_add"](c, m_WolComp["F_wolcomp_one"]()), u), V)
+    
+    FAC1_EXTRA = RemRedRule(fac1_extra_matching, fac1_extra_RHS, "", fac_sidecond)
+    rule_list.append(FAC1_EXTRA)
+
+
     ### FAC0
-    FAC0 = RemRedRule(F_add("?u", "?v"), 
+    FAC0 = RemRedRule(F_add("?u", "?u"), 
         F_scalar(m_WolComp["F_wolcomp_add"](m_WolComp["F_wolcomp_one"](), 
-        m_WolComp["F_wolcomp_one"]()), "?u"), "(1+1)*?u", fac_sidecond, "?u =eq ?v, ?u is L-normal")
+        m_WolComp["F_wolcomp_one"]()), "?u"), "", fac_sidecond)
     rule_list.append(FAC0)
+
+    ### FAC0_EXTRA
+    def fac0_extra_matching(term : RemTerm) -> RemSubst | None:
+        assert isinstance(term, RemCons)
+        add_terms = __collect(term)
+
+        for i in range(len(add_terms)):
+            term_i = add_terms[i]
+            assert isinstance(term_i, RemCons)
+
+            for j in range(i + 1, len(add_terms)):
+
+                term_j = add_terms[j]
+                assert isinstance(term_j, RemCons)
+                if eq_check(term_i, term_j):
+
+                    remainings = None
+                    for k in range(len(add_terms)):
+
+                        if k != i and k != j:
+                            if remainings is None:
+                                remainings = add_terms[k]
+                            else:
+                                remainings = F_add(remainings, add_terms[k])
+                    if remainings is None:
+                        return None
+
+                    return RemSubst({
+                        "?u"  : term_i,
+                        "?V"  : remainings
+                    })
+
+
+    def fac0_extra_RHS(matcher : RemSubst) -> RemTerm:
+        u = matcher["?u"]
+        V = matcher["?V"]
+        return F_add(F_scalar(m_WolComp["F_wolcomp_add"](m_WolComp["F_wolcomp_one"](), m_WolComp["F_wolcomp_one"]()), u), V)
+    
+    FAC0_EXTRA = RemRedRule(fac0_extra_matching, fac0_extra_RHS, "", fac_sidecond)
+    rule_list.append(FAC0_EXTRA)
 
     ######################################################
     # Group A
 
     ### APP_DISTR_L
 
-    def app_distr_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+    def app_distr_sidecond(matcher : RemSubst) -> RemSubst | None:
 
         if not closed_L_normal(F_add(matcher["?u"], matcher["?v"])): # type: ignore
             return None
@@ -511,7 +666,7 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
     rule_list.append(APP_DISTR_R)
 
     ### APP_SCALAR_L
-    def app_scalar_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+    def app_scalar_sidecond(matcher : RemSubst) -> RemSubst | None:
 
         if not closed_L_normal(matcher["?u"]): # type: ignore
             return None
@@ -536,7 +691,7 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
     ######################################################
     # Group B
     ### LINEAR_BETA
-    def linear_beta_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+    def linear_beta_sidecond(matcher : RemSubst) -> RemSubst | None:
         N = matcher["?N"]
         assert isinstance(N, RemCons)
 
@@ -557,7 +712,7 @@ def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
     rule_list.append(LINEAR_BETA)
 
 
-    TRS = RemTRS(rule_list)
+    TRS = RemTRS(rule_list, eq_check, eq_set)
     return TRS
 
 

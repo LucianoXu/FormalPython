@@ -74,3 +74,82 @@ def test_Phase():
 
     finally:
         session.terminate()
+
+
+
+def test_H_true():
+    session = WolframLanguageSession()
+    try:
+        L = lineal.build(
+            wolframC.MF_WolComp(session=session), 
+            uLC.MF_uLC(uLC.MF_uLC_syn())
+        )
+
+        env = RemSubst(
+            {
+                "true"  : L["parser"]("λx.λy.x"),
+                "false" : L["parser"]("λx.λy.y"),
+                "Not"   : L["parser"]("λf.(f (λx.λy.y) (λx.λy.x))"),
+                "Phase" : L["parser"]('λy.((y λx.("E^(I Pi/4)" * (λx.λy.x)) (λx.λx.λy.y)) λx.x)'),
+                "H"     : L["parser"]
+                    ('''                     
+                     λy.(
+                            (
+                                (
+                                    y 
+                                    λo."Sqrt[2]/2"*((λx.λy.y + λx.λy.x))
+                                )   
+                                (λo.("Sqrt[2]/2"*(λx.λy.y) + "-Sqrt[2]/2"*(λx.λy.x)))
+                            ) 
+                            λx.x
+                        )
+                     ''')
+            }
+        )
+
+        t1 = L["F_apply"]("H", "true")
+        t2 = L["parser"]('"Sqrt[2]/2"*(λx.λy.x + λx.λy.y)')
+
+        L["R_eq"](L["TRS"].reduces(env(t1)), L["TRS"].reduces(env(t2)))
+
+    finally:
+        session.terminate()
+
+
+def test_H_H_true():
+    session = WolframLanguageSession()
+    try:
+        L = lineal.build(
+            wolframC.MF_WolComp(session=session), 
+            uLC.MF_uLC(uLC.MF_uLC_syn())
+        )
+
+        env = RemSubst(
+            {
+                "true"  : L["parser"]("λx.λy.x"),
+                "false" : L["parser"]("λx.λy.y"),
+                "Not"   : L["parser"]("λf.(f (λx.λy.y) (λx.λy.x))"),
+                "Phase" : L["parser"]('λy.((y λx.("E^(I Pi/4)" * (λx.λy.x)) (λx.λx.λy.y)) λx.x)'),
+                "H"     : L["parser"]
+                    ('''                     
+                     λy.(
+                            (
+                                (
+                                    y 
+                                    λo."Sqrt[2]/2"*((λx.λy.y + λx.λy.x))
+                                )   
+                                (λo.("Sqrt[2]/2"*(λx.λy.y) + "-Sqrt[2]/2"*(λx.λy.x)))
+                            ) 
+                            λx.x
+                        )
+                     ''')
+            }
+        )
+
+        t1 = L["F_apply"]("H", L["F_apply"]("H", "true"))
+        t2 = L["parser"]('λx.λy.x')
+
+        L["R_eq"](L["TRS"].reduces(env(t1)), L["TRS"].reduces(env(t2)))
+
+    finally:
+        session.terminate()
