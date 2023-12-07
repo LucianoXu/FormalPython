@@ -323,7 +323,11 @@ def R_alpha_AC_eq_factory(m_lineal_syn : ModuleTerm,  P_alpha_eq : ProofSort) ->
 ###################################################
 # TRS 
 
-def TRS_factory(lineal_syn : ModuleTerm) -> RemTRS:
+def TRS_factory(lineal_syn : ModuleTerm, R_eq : ProofFun) -> RemTRS:
+    '''
+    R_eq : alpha-conversion and AC-equivalence
+    '''
+
     m_WolComp = lineal_syn["M_WolComp"]
     F_var = lineal_syn["F_var"]
     F_apply = lineal_syn["F_apply"]
@@ -331,10 +335,59 @@ def TRS_factory(lineal_syn : ModuleTerm) -> RemTRS:
     F_zero = lineal_syn["F_zero"]
     F_scalar = lineal_syn["F_scalar"]
     F_add = lineal_syn["F_add"]
+
     subst = lineal_syn["subst"]
+
+    def freevars(term : RemCons) -> set[RemCons]:
+        if term.fun == F_var:
+            return {term}
+        elif term.fun == F_apply:
+            return freevars(term["M"]) | freevars(term["N"])
+        elif term.fun == F_abstract:
+            return freevars(term["M"]) - {term["x"]}
+        elif term.fun == F_zero:
+            return set()
+        elif term.fun == F_scalar:
+            return freevars(term["M"])
+        elif term.fun == F_add:
+            return freevars(term["M"]) | freevars(term["N"])
+        else:
+            raise Exception()
+
+
+    def closed_L_normal(term : RemCons) -> bool:
+        '''
+        Check whether term is closed L-normal
+        '''
+        if len(freevars(term)) > 0:
+            return False
+        
+        if TRS.reduce(term) is not None:
+            return False
+        
+        return True
 
 
     rule_list : List[RemRedRule] = []
+
+    #########################################
+    # Group C -- FullySimplify Wolfram Terms
+
+    ### COMPLEX_SIMP
+    def complex_simp_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+        c = matcher["?c"]
+        assert isinstance(c, RemCons)
+        if c.fun != m_WolComp["F_wolsimp"]:
+            return matcher
+        else:
+            return None
+
+    def complex_simp_RHS(matcher : RemSubst) -> RemTerm:
+        return F_scalar(m_WolComp["F_wolsimp"](matcher["?c"]), matcher["?u"])
+        
+    COMPLEX_SIMP = RemRedRule(F_scalar("?c", "?u"), complex_simp_RHS, "simp(?c)*?u", complex_simp_sidecond, "?c is not simplified" )
+
+    # rule_list.append(COMPLEX_SIMP)
 
     ##################################################################
     # Group E
@@ -393,13 +446,25 @@ def TRS_factory(lineal_syn : ModuleTerm) -> RemTRS:
 
 
     ### FAC2
+    def fac_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+
+        if not closed_L_normal(matcher["?u"]): # type: ignore
+            return None
+
+        try:
+            R_eq(matcher["?u"], matcher["?v"])
+            return matcher
+        
+        except REM_CONSTRUCTION_Error:
+            return None
+
     def fac2_RHS(matcher : RemSubst) -> RemTerm:
         c1 = matcher["?c1"]
         c2 = matcher["?c2"]
         u = matcher["?u"]
         return F_scalar(m_WolComp["F_wolcomp_add"](c1, c2), u)
 
-    FAC2 = RemRedRule(F_add(F_scalar("?c1", "?u"), F_scalar("?c2", "?u")), fac2_RHS, "(?c1+?c2)*?u")
+    FAC2 = RemRedRule(F_add(F_scalar("?c1", "?u"), F_scalar("?c2", "?v")), fac2_RHS, "(?c1+?c2)*?u", fac_sidecond, "?u =eq ?v, ?u is L-normal")
     rule_list.append(FAC2)
 
     ### FAC1L
@@ -408,7 +473,7 @@ def TRS_factory(lineal_syn : ModuleTerm) -> RemTRS:
         u = matcher["?u"]
         return F_scalar(m_WolComp["F_wolcomp_add"](c, m_WolComp["F_wolcomp_one"]()), u)
 
-    FAC1L = RemRedRule(F_add(F_scalar("?c", "?u"), "?u"), fac1l_RHS, "(?c+1)*?u")
+    FAC1L = RemRedRule(F_add(F_scalar("?c", "?u"), "?v"), fac1l_RHS, "(?c+1)*?u", fac_sidecond, "?u =eq ?v, ?u is L-normal")
     rule_list.append(FAC1L)
 
     ### FAC1R
@@ -417,32 +482,47 @@ def TRS_factory(lineal_syn : ModuleTerm) -> RemTRS:
         u = matcher["?u"]
         return F_scalar(m_WolComp["F_wolcomp_add"](m_WolComp["F_wolcomp_one"](), c), u)
 
-    FAC1R = RemRedRule(F_add("?u", F_scalar("?c", "?u")), fac1r_RHS, "(1+?c)*?u")
+    FAC1R = RemRedRule(F_add("?u", F_scalar("?c", "?v")), fac1r_RHS, "(1+?c)*?u", fac_sidecond, "?u =eq ?v, ?u is L-normal")
     rule_list.append(FAC1R)
 
     ### FAC0
-    FAC0 = RemRedRule(F_add("?u", "?u"), 
+    FAC0 = RemRedRule(F_add("?u", "?v"), 
         F_scalar(m_WolComp["F_wolcomp_add"](m_WolComp["F_wolcomp_one"](), 
-        m_WolComp["F_wolcomp_one"]()), "?u"))
+        m_WolComp["F_wolcomp_one"]()), "?u"), "(1+1)*?u", fac_sidecond, "?u =eq ?v, ?u is L-normal")
     rule_list.append(FAC0)
 
     ######################################################
     # Group A
 
     ### APP_DISTR_L
-    APP_DISTR_L = RemRedRule(F_apply(F_add("?u", "?v"), "?w"), F_add(F_apply("?u", "?w"), F_apply("?v", "?w")))
+
+    def app_distr_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+
+        if not closed_L_normal(F_add(matcher["?u"], matcher["?v"])): # type: ignore
+            return None
+        
+        return matcher
+
+    APP_DISTR_L = RemRedRule(F_apply(F_add("?u", "?v"), "?w"), F_add(F_apply("?u", "?w"), F_apply("?v", "?w")), "", app_distr_sidecond, "(?u + ?v) is L-normal")
     rule_list.append(APP_DISTR_L)
 
     ### APP_DISTR_R
-    APP_DISTR_R = RemRedRule(F_apply("?w", F_add("?u", "?v")), F_add(F_apply("?w", "?u"), F_apply("?w", "?v")))
+    APP_DISTR_R = RemRedRule(F_apply("?w", F_add("?u", "?v")), F_add(F_apply("?w", "?u"), F_apply("?w", "?v")), "", app_distr_sidecond, "(?u + ?v) is L-normal")
     rule_list.append(APP_DISTR_R)
 
     ### APP_SCALAR_L
-    APP_SCALAR_L = RemRedRule(F_apply(F_scalar("?c", "?u"), "?v"), F_scalar("?c", F_apply("?u", "?v")))
+    def app_scalar_sidecond(matcher : RemSubst, module_env : RemVTerm | None = None) -> RemSubst | None:
+
+        if not closed_L_normal(matcher["?u"]): # type: ignore
+            return None
+        
+        return matcher
+
+    APP_SCALAR_L = RemRedRule(F_apply(F_scalar("?c", "?u"), "?v"), F_scalar("?c", F_apply("?u", "?v")), "", app_scalar_sidecond, "?u is L-normal")
     rule_list.append(APP_SCALAR_L)
 
     ### APP_SCALAR_R
-    APP_SCALAR_R = RemRedRule(F_apply("?v", F_scalar("?c", "?u")), F_scalar("?c", F_apply("?v", "?u")))
+    APP_SCALAR_R = RemRedRule(F_apply("?v", F_scalar("?c", "?u")), F_scalar("?c", F_apply("?v", "?u")), "", app_scalar_sidecond, "?u is L-normal")
     rule_list.append(APP_SCALAR_R)
 
     ### APP_ZERO_L
@@ -477,7 +557,8 @@ def TRS_factory(lineal_syn : ModuleTerm) -> RemTRS:
     rule_list.append(LINEAR_BETA)
 
 
-    return RemTRS(rule_list)
+    TRS = RemTRS(rule_list)
+    return TRS
 
 
 ############################################
@@ -497,8 +578,10 @@ def Parser_factory(m_uLC : ModuleTerm, m_WolComp : ModuleTerm, lineal_syn : Modu
     lexer = PLYLexer("lineal")
     lexer.fuse_append(m_WolComp["parser"].bound_plylexer)
     lexer.add_normal_token("LAMBDA", r"λ|\\lambda")
-    lexer.add_normal_token("ignore", " \t")
     lexer.add_normal_token("OPTZERO", r"𝟬|\\0")
+    lexer.add_normal_token("ignore", " \t")
+    lexer.add_normal_token("newline", syn.t_newline)
+
     lexer.add_literals({'*', '+'})
     lexer.add_literals({'(', ')'})
     lexer.add_literals({'.'})    
@@ -618,7 +701,7 @@ def __modify_MF_lineal(term : ModuleCons, *paras, **kwparas):
     term["R_eq"         ] = R_alpha_AC_eq
 
     # TRS
-    term["TRS"          ] = TRS_factory(lineal_syn)
+    term["TRS"          ] = TRS_factory(lineal_syn, R_alpha_AC_eq)
 
     # the parser
     parser = Parser_factory(m_uLC, m_WolComp, lineal_syn)

@@ -37,6 +37,21 @@ def F_wolcode_factory(WolComp : RemSort) -> RemFun:
 
     return F
 
+def F_wolsimp_factory(WolComp : RemSort) -> RemFun:
+    '''
+    The fully simplified term
+    '''
+    F = RemFun("f_wolsimp", (WolComp,), WolComp)
+
+    F.rule_doc = "<wolfram simplified term>"
+
+    def modify(term : RemCons, *paras, **kwparas):
+        term["term"] = WolComp["session"].evaluate(wl.Simplify(paras[0]["term"]))
+    F.modify = modify
+
+    return F
+
+
 def F_wolcomp_zero_factory(WolComp : RemSort) -> RemFun:
     F = RemFun("f_wolcomp_zero", (), WolComp)
 
@@ -135,7 +150,7 @@ def F_wolcomp_conj_factory(WolComp : RemSort) -> RemFun:
 # the function to check equiality
 def wolcomp_eq_fun_factory(WolComp : RemSort):
     def f(c1 : RemCons, c2 : RemCons) -> bool:
-        return WolComp["session"].evaluate(wl.Simplify(wl.Equal(c1["term"], c2["term"]))) == True
+        return WolComp["session"].evaluate(wl.FullSimplify(wl.Equal(c1["term"], c2["term"]))) == True
     
     return f
 
@@ -198,6 +213,8 @@ M_WolComp = ModuleSort("M_WolComp",
     {
         "WolComp" : RemSort,
         "F_wolcode" : RemFun,
+        "F_wolsimp" : RemFun,
+
         "F_wolcomp_zero"    : RemFun,
         "F_wolcomp_one"     : RemFun,
         "F_wolcomp_add"     : RemFun,
@@ -214,8 +231,10 @@ MF_WolComp = ModuleFun("MF_WolComp", (), M_WolComp, {"session" : WolframLanguage
 def __modify_MF_WolComp(term : ModuleCons, *paras, **kwparas):
     session = kwparas["session"]
     WolComp = S_WolComp_factory(session)
+
     term["WolComp"          ] = WolComp
     term["F_wolcode"        ] = F_wolcode_factory(WolComp)
+    term["F_wolsimp"        ] = F_wolsimp_factory(WolComp)
     term["F_wolcomp_zero"   ] = F_wolcomp_zero_factory(WolComp)
     term["F_wolcomp_one"    ] = F_wolcomp_one_factory(WolComp)
     term["F_wolcomp_add"    ] = F_wolcomp_add_factory(WolComp)

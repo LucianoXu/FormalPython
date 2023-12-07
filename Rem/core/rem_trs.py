@@ -20,7 +20,7 @@ The type for a side condition.
     - None : reject.
 '''
 
-SideCond = Callable[[RemSubst, Union[RemVTerm, None]], Union[RemSubst, None]]
+SideCond = Callable[[RemSubst], Union[RemSubst, None]]
 
 
 # a function to calculate the right hand side using the matcher
@@ -57,7 +57,7 @@ class RemRedRule:
     def __str__(self) -> str:
         return f"{self.side_cond_doc} ⊢ {self.lhs} → {self.rhs_doc}"
 
-    def rewrite(self, term : RemTerm, module : RemVTerm | None = None) -> RemTerm | None:
+    def rewrite(self, term : RemTerm) -> RemTerm | None:
         '''
         Match and rewrite the term.
         Return the result of rewriting. Return None if not matched.
@@ -71,7 +71,7 @@ class RemRedRule:
         
         # Check side conditions.
         else:
-            new_matcher = self.side_cond(matcher, module)
+            new_matcher = self.side_cond(matcher)
             if new_matcher is None:
                 return None
             else:
@@ -83,7 +83,7 @@ class RemTRS:
 
     Note: no renaming is considered here, so the variables in rewriting rules should be always unique, for example "?x".
     '''
-    def __init__(self, rules : List[RemRedRule], module_sort : ModuleSort|None = None):
+    def __init__(self, rules : List[RemRedRule]):
         '''
         Create a term rewriting system
         '''
@@ -91,53 +91,38 @@ class RemTRS:
         for rule in rules:
             REM_type_check(rule, RemRedRule)
 
-        REM_type_check(module_sort, (ModuleSort, type(None)))
-
         self.rules = rules.copy()
-        self.module_sort = module_sort
 
 
-    def reduce(self, term : RemTerm, module : RemVTerm | None = None) -> RemTerm | None:
+    def reduce(self, term : RemTerm) -> RemTerm | None:
 
-        # Check the module environment
-        if self.module_sort is not None:
-            if module is None:
-                raise REM_CONSTRUCTION_Error(f"The module environment for rewriting is not provided.")
-            
-            if not module.well_typed(self.module_sort):
-                raise REM_Sort_Error(module, self.module_sort)
-            
         # invocate the verification-free algorithm
-        return self.__rewrite_iter(term, module)
+        return self.__rewrite_iter(term)
     
-    def reduces(self, term : RemTerm, module : RemVTerm | None = None) -> RemTerm:
-
-        # Check the module environment
-        if self.module_sort is not None:
-            if module is None:
-                raise REM_CONSTRUCTION_Error(f"The module environment for rewriting is not provided.")
-            
-            if not module.well_typed(self.module_sort):
-                raise REM_Sort_Error(module, self.module_sort)
-            
+    def reduces(self, term : RemTerm, silent : bool = True) -> RemTerm:
+   
         # invocate the verification-free algorithm
         
         new_term = term
+        step = 0
         while new_term is not None:
+            if not silent:
+                print(f"[{step}]\t {new_term}\n")
             term = new_term
-            new_term = self.__rewrite_iter(term, module)
+            new_term = self.__rewrite_iter(term)
+            step += 1
         
         return term
     
 
-    def __rewrite_iter(self, term : RemTerm, module : RemVTerm | None) -> RemTerm | None:
+    def __rewrite_iter(self, term : RemTerm) -> RemTerm | None:
         '''
         Try to rewrite the term once.
         '''
 
         if isinstance(term, RemVar):
             for rule in self.rules:
-                new_term = rule.rewrite(term, module)
+                new_term = rule.rewrite(term)
                 if new_term is not None:
                     return new_term
                 
@@ -146,13 +131,13 @@ class RemTRS:
         elif isinstance(term, RemCons):
             # check the parameters
             for i in range(term.fun.arity):
-                new_term = self.reduce(term[i], module)
+                new_term = self.reduce(term[i])
                 if new_term is not None:
                     return term.replace(i, new_term)
                 
             # check the function itself
             for rule in self.rules:
-                new_term = rule.rewrite(term, module)
+                new_term = rule.rewrite(term)
                 if new_term is not None:
                     return new_term
             

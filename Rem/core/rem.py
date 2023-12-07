@@ -637,7 +637,7 @@ class RemVar(RemTerm):
     def ast_vlayout(self, dot: Digraph, traveled_id : set[str]):
         self.vlayout(dot, self.graphvizID, str(self))
 
-            
+
 
 
 class RemCons(RemTerm):
