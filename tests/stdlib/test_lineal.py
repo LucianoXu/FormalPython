@@ -95,11 +95,9 @@ def test_H_true():
                     ('''                     
                      λy.(
                             (
-                                (
-                                    y 
-                                    λo."Sqrt[2]/2"*((λx.λy.y + λx.λy.x))
-                                )   
-                                (λo.("Sqrt[2]/2"*(λx.λy.y) + "-Sqrt[2]/2"*(λx.λy.x)))
+                                y 
+                                λo."Sqrt[2]/2"*(λx.λy.x + λx.λy.y)
+                                (λo.("Sqrt[2]/2"*(λx.λy.x) + "-Sqrt[2]/2"*(λx.λy.y)))
                             ) 
                             λx.x
                         )
@@ -136,9 +134,9 @@ def test_H_H_true():
                             (
                                 (
                                     y 
-                                    λo."Sqrt[2]/2"*((λx.λy.y + λx.λy.x))
+                                    λo."Sqrt[2]/2"*((λx.λy.x + λx.λy.y))
                                 )   
-                                (λo.("Sqrt[2]/2"*(λx.λy.y) + "-Sqrt[2]/2"*(λx.λy.x)))
+                                (λo.("Sqrt[2]/2"*(λx.λy.x) + "-Sqrt[2]/2"*(λx.λy.y)))
                             ) 
                             λx.x
                         )
